@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type Supplier = 'house-of-sin' | 'purpose-foods';
+type Supplier = 'house-of-sin' | 'purpose-foods' | 'triple-co-roast';
 
 type HoSDayOrder = {
   plain: number;
@@ -27,11 +27,21 @@ type PFOrderData = {
   lemonCoconut: number;
 };
 
+type TCROrderData = {
+  bs1Espresso: number;
+  cruiseControl: number;
+  jumpstart: number;
+  mixtape: number;
+  shopFilter: number;
+  ethiopiaDanche: number;
+  rwandaRwamatamu: number;
+};
+
 type PendingOrder = {
   supplier: Supplier;
   venue: string;
   manager: string;
-  order: HoSOrderData | PFOrderData;
+  order: HoSOrderData | PFOrderData | TCROrderData;
   callbackUrl: string;
   receivedAt: string;
   status: 'pending';
@@ -60,9 +70,20 @@ const PF_FLAVOURS: { key: keyof PFOrderData; label: string; icon: string }[] = [
   { key: 'lemonCoconut',      label: 'Lemon Coconut',       icon: '◇' },
 ];
 
+const TCR_PRODUCTS: { key: keyof TCROrderData; label: string; icon: string }[] = [
+  { key: 'bs1Espresso',     label: 'BS1 Espresso',                  icon: '◉' },
+  { key: 'cruiseControl',   label: 'Cruise Control (Brazil Classico)', icon: '◎' },
+  { key: 'jumpstart',       label: 'Jumpstart',                     icon: '○' },
+  { key: 'mixtape',         label: 'Mixtape',                       icon: '◈' },
+  { key: 'shopFilter',      label: 'Shop Filter',                   icon: '◇' },
+  { key: 'ethiopiaDanche',  label: 'Ethiopia Danche',               icon: '◉' },
+  { key: 'rwandaRwamatamu', label: 'Rwanda Rwamatamu',              icon: '◎' },
+];
+
 const SUPPLIER_LABEL: Record<Supplier, string> = {
-  'house-of-sin':  'House of Sin',
-  'purpose-foods': 'Purpose Foods',
+  'house-of-sin':    'House of Sin',
+  'purpose-foods':   'Purpose Foods',
+  'triple-co-roast': 'Triple Co Roast',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -83,6 +104,10 @@ function hosTotal(order: HoSOrderData): number {
 
 function pfTotal(order: PFOrderData): number {
   return PF_FLAVOURS.reduce((s, { key }) => s + (order[key] ?? 0), 0);
+}
+
+function tcrTotal(order: TCROrderData): number {
+  return TCR_PRODUCTS.reduce((s, { key }) => s + (order[key] ?? 0), 0);
 }
 
 function deepCopyHoS(o: HoSOrderData): HoSOrderData {
@@ -107,6 +132,14 @@ function buildPFRawInputs(order: PFOrderData): Record<string, string> {
   return r;
 }
 
+function buildTCRRawInputs(order: TCROrderData): Record<string, string> {
+  const r: Record<string, string> = {};
+  for (const { key } of TCR_PRODUCTS) {
+    r[key] = String(order[key] ?? 0);
+  }
+  return r;
+}
+
 // ── Style constants ───────────────────────────────────────────────────────────
 
 const cg: React.CSSProperties  = { fontFamily: "'Cormorant Garamond', serif" };
@@ -116,8 +149,8 @@ const lbl: React.CSSProperties = { ...dm, fontSize: 10, letterSpacing: '0.1em', 
 // ── Per-order state ───────────────────────────────────────────────────────────
 
 type OrderState = {
-  edited: HoSOrderData | PFOrderData;
-  original: HoSOrderData | PFOrderData;
+  edited: HoSOrderData | PFOrderData | TCROrderData;
+  original: HoSOrderData | PFOrderData | TCROrderData;
   rawInputs: Record<string, string>;
   submitting: boolean;
   result: 'approved' | 'rejected' | null;
@@ -125,15 +158,18 @@ type OrderState = {
 };
 
 function initOrderState(order: PendingOrder): OrderState {
-  const copy = order.supplier === 'purpose-foods'
-    ? { ...(order.order as PFOrderData) }
-    : deepCopyHoS(order.order as HoSOrderData);
-  const orig = order.supplier === 'purpose-foods'
-    ? { ...(order.order as PFOrderData) }
-    : deepCopyHoS(order.order as HoSOrderData);
-  const rawInputs = order.supplier === 'purpose-foods'
-    ? buildPFRawInputs(order.order as PFOrderData)
-    : buildHoSRawInputs(order.order as HoSOrderData);
+  const copy =
+    order.supplier === 'triple-co-roast' ? { ...(order.order as TCROrderData) } :
+    order.supplier === 'purpose-foods'   ? { ...(order.order as PFOrderData) }  :
+    deepCopyHoS(order.order as HoSOrderData);
+  const orig =
+    order.supplier === 'triple-co-roast' ? { ...(order.order as TCROrderData) } :
+    order.supplier === 'purpose-foods'   ? { ...(order.order as PFOrderData) }  :
+    deepCopyHoS(order.order as HoSOrderData);
+  const rawInputs =
+    order.supplier === 'triple-co-roast' ? buildTCRRawInputs(order.order as TCROrderData) :
+    order.supplier === 'purpose-foods'   ? buildPFRawInputs(order.order as PFOrderData)   :
+    buildHoSRawInputs(order.order as HoSOrderData);
   return { edited: copy, original: orig, rawInputs, submitting: false, result: null, error: '' };
 }
 
@@ -301,6 +337,96 @@ function PFCard({
             <span style={{ ...lbl }}>Qty</span>
           </div>
           {PF_FLAVOURS.map(({ key, label, icon }) => {
+            const numVal  = edited[key] ?? 0;
+            const orgVal  = original[key] ?? 0;
+            const changed = numVal !== orgVal;
+            const inputVal = state.rawInputs[key] ?? String(numVal);
+            return (
+              <div key={key} className={`flex items-center justify-between px-5 py-4 border-b border-[#F2EBE0] last:border-0 ${changed ? 'bg-[#FFFCF5]' : ''}`}>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-[#C8935A] text-xs select-none">{icon}</span>
+                  <span style={{ ...dm, fontSize: 13 }} className="text-[#3D2B1A]">{label}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {changed && (
+                    <span style={{ ...dm, fontSize: 11 }} className="text-[#C8935A] line-through tabular-nums">{orgVal}</span>
+                  )}
+                  <input
+                    type="number" min={0}
+                    value={inputVal}
+                    onChange={e => onChange(key, e.target.value)}
+                    onBlur={() => onBlur(key)}
+                    disabled={state.submitting}
+                    style={{ ...dm, fontSize: 13, fontWeight: 500 }}
+                    className={`w-14 text-center rounded-lg border py-2 focus:outline-none focus:ring-2 focus:ring-[#C8935A] transition-all disabled:opacity-50 ${
+                      changed ? 'border-[#C8935A] text-[#B8621A] bg-[#FEF3E2]' : 'border-[#EDE3D5] text-[#2C1A0E] bg-[#FAF7F0]'
+                    }`}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <OrderFooter state={state} hasEdits={hasEdits} onSubmit={onSubmit} />
+    </div>
+  );
+}
+
+// ── TCR order card ────────────────────────────────────────────────────────────
+
+function TCRCard({
+  order, state,
+  onChange, onBlur, onSubmit,
+}: {
+  order: PendingOrder;
+  state: OrderState;
+  onChange: (product: keyof TCROrderData, value: string) => void;
+  onBlur: (product: keyof TCROrderData) => void;
+  onSubmit: (action: 'approved' | 'rejected') => void;
+}) {
+  const edited   = state.edited as TCROrderData;
+  const original = state.original as TCROrderData;
+  const total    = tcrTotal(edited);
+
+  const hasEdits = TCR_PRODUCTS.some(({ key }) => edited[key] !== original[key]);
+
+  return (
+    <div className="bg-white rounded-2xl border border-[#EDE3D5] overflow-hidden">
+      {/* Card header */}
+      <div className="px-7 py-6 border-b border-[#EDE3D5] flex flex-wrap gap-x-10 gap-y-4 items-start justify-between bg-[#FDFAF5]">
+        <div>
+          <p style={lbl} className="mb-1.5">Supplier</p>
+          <p style={{ ...cg, fontSize: 22, fontWeight: 600 }} className="text-[#2C1A0E]">
+            Triple Co Roast
+            <span style={{ ...dm, fontSize: 11, fontWeight: 400 }} className="ml-2 text-[#C8935A]">
+              Coffee
+            </span>
+          </p>
+        </div>
+        <div>
+          <p style={lbl} className="mb-1.5">Submitted by</p>
+          <p style={{ ...dm, fontWeight: 500 }} className="text-[#2C1A0E]">{order.manager || '—'}</p>
+        </div>
+        <div>
+          <p style={lbl} className="mb-1.5">Received</p>
+          <p style={dm} className="text-[#2C1A0E] text-sm">{formatDate(order.receivedAt)}</p>
+        </div>
+        <div className="text-right">
+          <p style={lbl} className="mb-1.5">Total bags</p>
+          <p style={{ ...cg, fontSize: 22, fontWeight: 600 }} className="text-[#B8621A]">{total}</p>
+        </div>
+      </div>
+
+      {/* Flat product table */}
+      <div className="max-w-md mx-auto px-6 py-5">
+        <div className="rounded-xl border border-[#EDE3D5] overflow-hidden">
+          <div className="px-5 py-3.5 bg-[#FAF7F2] border-b border-[#EDE3D5] flex justify-between">
+            <span style={{ ...lbl }}>Coffee (1kg bags)</span>
+            <span style={{ ...lbl }}>Qty</span>
+          </div>
+          {TCR_PRODUCTS.map(({ key, label, icon }) => {
             const numVal  = edited[key] ?? 0;
             const orgVal  = original[key] ?? 0;
             const changed = numVal !== orgVal;
@@ -510,6 +636,36 @@ export default function Dashboard() {
     });
   }
 
+  // ── TCR quantity update ────────────────────────────────────────────────────
+
+  function updateTCRQty(supplier: Supplier, product: keyof TCROrderData, value: string) {
+    const num = value === '' ? 0 : Math.max(0, parseInt(value, 10) || 0);
+    setStates(prev => {
+      const s = prev[supplier];
+      if (!s) return prev;
+      return {
+        ...prev,
+        [supplier]: {
+          ...s,
+          edited: { ...(s.edited as TCROrderData), [product]: num },
+          rawInputs: { ...s.rawInputs, [product]: value },
+        },
+      };
+    });
+  }
+
+  function blurTCRQty(supplier: Supplier, product: keyof TCROrderData) {
+    setStates(prev => {
+      const s = prev[supplier];
+      if (!s) return prev;
+      const cur = s.rawInputs[product] ?? '';
+      if (cur === '' || isNaN(Number(cur))) {
+        return { ...prev, [supplier]: { ...s, rawInputs: { ...s.rawInputs, [product]: '0' } } };
+      }
+      return prev;
+    });
+  }
+
   // ── Submit ─────────────────────────────────────────────────────────────────
 
   async function handleSubmit(supplier: Supplier, action: 'approved' | 'rejected') {
@@ -612,6 +768,36 @@ export default function Dashboard() {
               {orders.map(order => {
                 const s = states[order.supplier];
                 if (!s) return null;
+
+                if (order.supplier === 'triple-co-roast') {
+                  return (
+                    <div key={order.supplier}>
+                      <TCRCard
+                        order={order}
+                        state={s}
+                        onChange={(product, value) => updateTCRQty(order.supplier, product, value)}
+                        onBlur={product => blurTCRQty(order.supplier, product)}
+                        onSubmit={action => handleSubmit(order.supplier, action)}
+                      />
+                      {!s.result && (
+                        <div className="mt-3 px-1">
+                          <label style={lbl} className="block mb-2">
+                            Reason for changes{' '}
+                            <span className="text-[#C8BBA8] normal-case tracking-normal" style={{ textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+                          </label>
+                          <textarea
+                            value={notes[order.supplier] ?? ''}
+                            onChange={e => setNotes(prev => ({ ...prev, [order.supplier]: e.target.value }))}
+                            placeholder="e.g. Increased BS1 Espresso — running low"
+                            rows={2}
+                            style={{ ...dm, fontSize: 13 }}
+                            className="w-full border border-[#EDE3D5] rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#C8935A] resize-none placeholder-[#C8BBA8] bg-white text-[#2C1A0E] transition-colors"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
 
                 if (order.supplier === 'purpose-foods') {
                   return (

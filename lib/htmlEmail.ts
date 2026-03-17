@@ -1,4 +1,4 @@
-import type { HoSOrderData, HoSDayOrder, PFOrderData } from './orderStore';
+import type { HoSOrderData, HoSDayOrder, PFOrderData, TCROrderData } from './orderStore';
 
 const DELIVERY_ADDRESS =
   'Dear Coco Coffee Bar, The Gessner Apartments, 3 Watermead Way, London N17 9QZ (Contact: Remi Lord, 07718 380 482)';
@@ -15,6 +15,16 @@ const HOS_FLAVOURS: { key: keyof HoSDayOrder; label: string }[] = [
   { key: 'classicCreamCheese',    label: 'Classic Cream Cheese' },
   { key: 'saltedCaramelAndPecan', label: 'Salted Caramel & Pecan' },
   { key: 'lotusBiscoff',          label: 'Lotus Biscoff' },
+];
+
+const TCR_PRODUCTS: { key: keyof TCROrderData; label: string }[] = [
+  { key: 'bs1Espresso',     label: 'BS1 Espresso' },
+  { key: 'cruiseControl',   label: 'Cruise Control (Brazil Classico)' },
+  { key: 'jumpstart',       label: 'Jumpstart' },
+  { key: 'mixtape',         label: 'Mixtape' },
+  { key: 'shopFilter',      label: 'Shop Filter' },
+  { key: 'ethiopiaDanche',  label: 'Ethiopia Danche' },
+  { key: 'rwandaRwamatamu', label: 'Rwanda Rwamatamu' },
 ];
 
 const PF_FLAVOURS: { key: keyof PFOrderData; label: string }[] = [
@@ -71,6 +81,29 @@ export function generatePFEmail(
   const notesHtml = notes ? `<p><strong>Adjustment notes:</strong> ${notes}</p>` : '';
   const inner =
     `<p>Hi team, below is our protein ball order for ${venue}</p>` +
+    `<p><strong>Delivery address:</strong> ${DELIVERY_ADDRESS}</p>` +
+    notesHtml +
+    table +
+    `<br><p>Thanks,<br>${manager}</p>`;
+  return `<!DOCTYPE html><html><body style="${body}">${inner}</body></html>`;
+}
+
+export function generateTCREmail(
+  order: TCROrderData,
+  venue: string,
+  manager: string,
+  notes?: string
+): string {
+  const rows = TCR_PRODUCTS.map(
+    p => `<tr><td style="${tdN}">${p.label}</td><td style="${tdC}">${order[p.key] ?? 0}</td></tr>`
+  ).join('');
+  const table =
+    `<table style="${tbl}"><thead><tr>` +
+    `<th style="${thL}">Coffee (1kg bags)</th><th style="${thC}">Amount Required</th>` +
+    `</tr></thead><tbody>${rows}</tbody></table>`;
+  const notesHtml = notes ? `<p><strong>Adjustment notes:</strong> ${notes}</p>` : '';
+  const inner =
+    `<p>Hi team, below is our coffee order for ${venue}</p>` +
     `<p><strong>Delivery address:</strong> ${DELIVERY_ADDRESS}</p>` +
     notesHtml +
     table +

@@ -2,7 +2,7 @@ import { writeFileSync, readFileSync, existsSync } from 'fs';
 
 const TMP_PATH = '/tmp/dear-coco-orders.json';
 
-export type Supplier = 'house-of-sin' | 'purpose-foods';
+export type Supplier = 'house-of-sin' | 'purpose-foods' | 'triple-co-roast';
 
 export type HoSDayOrder = {
   plain: number;
@@ -25,11 +25,21 @@ export type PFOrderData = {
   lemonCoconut: number;
 };
 
+export type TCROrderData = {
+  bs1Espresso: number;
+  cruiseControl: number;
+  jumpstart: number;
+  mixtape: number;
+  shopFilter: number;
+  ethiopiaDanche: number;
+  rwandaRwamatamu: number;
+};
+
 export type PendingOrder = {
   supplier: Supplier;
   venue: string;
   manager: string;
-  order: HoSOrderData | PFOrderData;
+  order: HoSOrderData | PFOrderData | TCROrderData;
   callbackUrl: string;
   receivedAt: string;
   status: 'pending';

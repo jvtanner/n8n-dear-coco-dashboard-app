@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveOrder } from '@/lib/orderStore';
-import type { Supplier, HoSOrderData, HoSDayOrder, PFOrderData } from '@/lib/orderStore';
+import type { Supplier, HoSOrderData, HoSDayOrder, PFOrderData, TCROrderData } from '@/lib/orderStore';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +38,21 @@ function normalizePF(raw: unknown): PFOrderData {
   };
 }
 
+function normalizeTCR(raw: unknown): TCROrderData {
+  // WF1 may wrap the order under a `tripleCo` key
+  const outer = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const s = (outer.tripleCo && typeof outer.tripleCo === 'object' ? outer.tripleCo : outer) as Record<string, unknown>;
+  return {
+    bs1Espresso:     toNum(s.bs1Espresso),
+    cruiseControl:   toNum(s.cruiseControl),
+    jumpstart:       toNum(s.jumpstart),
+    mixtape:         toNum(s.mixtape),
+    shopFilter:      toNum(s.shopFilter),
+    ethiopiaDanche:  toNum(s.ethiopiaDanche),
+    rwandaRwamatamu: toNum(s.rwandaRwamatamu),
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -45,14 +60,16 @@ export async function POST(req: NextRequest) {
     const callbackUrl: string =
       body.callbackUrl ?? 'https://joshuavtanner.app.n8n.cloud/webhook/order-approved';
 
-    const supplier: Supplier = callbackUrl.includes('order-approved-pf')
-      ? 'purpose-foods'
-      : 'house-of-sin';
+    const supplier: Supplier =
+      callbackUrl.includes('order-approved-tcr') ? 'triple-co-roast' :
+      callbackUrl.includes('order-approved-pf')  ? 'purpose-foods'   :
+      'house-of-sin';
 
     const rawOrder = typeof body.order === 'string' ? JSON.parse(body.order) : body.order;
-    const order = supplier === 'purpose-foods'
-      ? normalizePF(rawOrder)
-      : normalizeHoS(rawOrder);
+    const order =
+      supplier === 'triple-co-roast' ? normalizeTCR(rawOrder) :
+      supplier === 'purpose-foods'   ? normalizePF(rawOrder)  :
+      normalizeHoS(rawOrder);
 
     saveOrder({
       supplier,
