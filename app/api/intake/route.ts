@@ -1,23 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveOrder } from '@/lib/orderStore';
-import type { OrderData } from '@/lib/orderStore';
+import type { Supplier, HoSOrderData, HoSDayOrder, PFOrderData } from '@/lib/orderStore';
 
 export const dynamic = 'force-dynamic';
+
+function toNum(v: unknown): number {
+  return Math.max(0, Number(v) || 0);
+}
+
+function normalizeHoSDay(d: unknown): HoSDayOrder {
+  const s = (d && typeof d === 'object' ? d : {}) as Record<string, unknown>;
+  return {
+    plain:                 toNum(s.plain),
+    classicCreamCheese:    toNum(s.classicCreamCheese),
+    saltedCaramelAndPecan: toNum(s.saltedCaramelAndPecan),
+    lotusBiscoff:          toNum(s.lotusBiscoff),
+  };
+}
+
+function normalizeHoS(raw: unknown): HoSOrderData {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  return {
+    tuesday:  normalizeHoSDay(s.tuesday),
+    thursday: normalizeHoSDay(s.thursday),
+    saturday: normalizeHoSDay(s.saturday),
+  };
+}
+
+function normalizePF(raw: unknown): PFOrderData {
+  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  return {
+    almondChocChip:   toNum(s.almondChocChip),
+    raspberryCoconut: toNum(s.raspberryCoconut),
+    crunchyBrownie:   toNum(s.crunchyBrownie),
+    saltedCaramel:    toNum(s.saltedCaramel),
+    lemonCoconut:     toNum(s.lemonCoconut),
+  };
+}
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
+    const callbackUrl: string =
+      body.callbackUrl ?? 'https://joshuavtanner.app.n8n.cloud/webhook/order-approved';
+
+    const supplier: Supplier = callbackUrl.includes('order-approved-pf')
+      ? 'purpose-foods'
+      : 'house-of-sin';
+
     const rawOrder = typeof body.order === 'string' ? JSON.parse(body.order) : body.order;
-    const order = rawOrder as OrderData;
+    const order = supplier === 'purpose-foods'
+      ? normalizePF(rawOrder)
+      : normalizeHoS(rawOrder);
 
     saveOrder({
-      venue: body.venue ?? 'Dear Coco',
-      manager: body.manager ?? '',
+      supplier,
+      venue:       body.venue   ?? 'Dear Coco',
+      manager:     body.manager ?? '',
       order,
-      callbackUrl: body.callbackUrl ?? 'https://joshuavtanner.app.n8n.cloud/webhook/order-approved',
-      receivedAt: new Date().toISOString(),
-      status: 'pending',
+      callbackUrl,
+      receivedAt:  new Date().toISOString(),
+      status:      'pending',
     });
 
     return NextResponse.json({ success: true });

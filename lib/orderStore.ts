@@ -1,61 +1,76 @@
 import { writeFileSync, readFileSync, existsSync } from 'fs';
 
-const TMP_PATH = '/tmp/dear-coco-order.json';
+const TMP_PATH = '/tmp/dear-coco-orders.json';
 
-export type DayOrder = {
+export type Supplier = 'house-of-sin' | 'purpose-foods';
+
+export type HoSDayOrder = {
   plain: number;
   classicCreamCheese: number;
   saltedCaramelAndPecan: number;
   lotusBiscoff: number;
 };
 
-export type OrderData = {
-  tuesday: DayOrder;
-  thursday: DayOrder;
-  saturday: DayOrder;
+export type HoSOrderData = {
+  tuesday: HoSDayOrder;
+  thursday: HoSDayOrder;
+  saturday: HoSDayOrder;
+};
+
+export type PFOrderData = {
+  almondChocChip: number;
+  raspberryCoconut: number;
+  crunchyBrownie: number;
+  saltedCaramel: number;
+  lemonCoconut: number;
 };
 
 export type PendingOrder = {
+  supplier: Supplier;
   venue: string;
   manager: string;
-  order: OrderData;
+  order: HoSOrderData | PFOrderData;
   callbackUrl: string;
   receivedAt: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending';
 };
 
-// Module-level store — survives within a warm Lambda instance
-let currentOrder: PendingOrder | null = null;
+// Module-level store keyed by supplier — survives within a warm Lambda instance
+const orders = new Map<Supplier, PendingOrder>();
 
-export function saveOrder(order: PendingOrder): void {
-  currentOrder = order;
+function persist() {
   try {
-    writeFileSync(TMP_PATH, JSON.stringify(order));
+    writeFileSync(TMP_PATH, JSON.stringify(Array.from(orders.values())));
   } catch {
-    // /tmp may not be writable in all environments; in-memory is sufficient
+    // /tmp may not be writable in all environments
   }
 }
 
-export function getOrder(): PendingOrder | null {
-  if (currentOrder) return currentOrder;
-  // Try hydrating from /tmp (warm instance that lost in-memory state)
+function hydrate() {
+  if (orders.size > 0) return;
   try {
     if (existsSync(TMP_PATH)) {
       const raw = readFileSync(TMP_PATH, 'utf-8');
-      currentOrder = JSON.parse(raw) as PendingOrder;
-      return currentOrder;
+      if (!raw) return;
+      const arr = JSON.parse(raw) as PendingOrder[];
+      for (const o of arr) orders.set(o.supplier, o);
     }
   } catch {
     // ignore
   }
-  return null;
 }
 
-export function clearOrder(): void {
-  currentOrder = null;
-  try {
-    if (existsSync(TMP_PATH)) writeFileSync(TMP_PATH, '');
-  } catch {
-    // ignore
-  }
+export function saveOrder(order: PendingOrder): void {
+  orders.set(order.supplier, order);
+  persist();
+}
+
+export function getAllOrders(): PendingOrder[] {
+  hydrate();
+  return Array.from(orders.values());
+}
+
+export function clearOrder(supplier: Supplier): void {
+  orders.delete(supplier);
+  persist();
 }

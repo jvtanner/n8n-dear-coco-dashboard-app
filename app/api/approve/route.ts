@@ -1,40 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getOrder, clearOrder } from '@/lib/orderStore';
-import { generateHtmlEmail } from '@/lib/htmlEmail';
-import type { OrderData } from '@/lib/orderStore';
+import { getAllOrders, clearOrder } from '@/lib/orderStore';
+import { generateHoSEmail, generatePFEmail } from '@/lib/htmlEmail';
+import type { Supplier, HoSOrderData, PFOrderData } from '@/lib/orderStore';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, order, adjustmentNotes } = body as {
+    const { action, supplier, order, adjustmentNotes } = body as {
       action: 'approved' | 'rejected';
-      order: OrderData;
+      supplier: Supplier;
+      order: HoSOrderData | PFOrderData;
       adjustmentNotes?: string;
     };
 
-    const stored = getOrder();
+    const stored = getAllOrders().find(o => o.supplier === supplier);
     if (!stored) {
-      return NextResponse.json({ success: false, error: 'No pending order found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'No pending order found for supplier' }, { status: 404 });
     }
 
-    const htmlEmail = generateHtmlEmail(order, stored.venue, stored.manager, adjustmentNotes);
+    const htmlEmail = supplier === 'purpose-foods'
+      ? generatePFEmail(order as PFOrderData, stored.venue, stored.manager, adjustmentNotes)
+      : generateHoSEmail(order as HoSOrderData, stored.venue, stored.manager, adjustmentNotes);
 
-    const payload = {
-      action,
-      htmlEmail,
-      venue: stored.venue,
-      manager: stored.manager,
-      order,
-      ...(adjustmentNotes ? { adjustmentNotes } : {}),
-    };
-
-    const callbackUrl = stored.callbackUrl || 'https://joshuavtanner.app.n8n.cloud/webhook/order-approved';
-    const n8nRes = await fetch(callbackUrl, {
+    const n8nRes = await fetch(stored.callbackUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        action,
+        htmlEmail,
+        venue:   stored.venue,
+        manager: stored.manager,
+        order,
+        ...(adjustmentNotes ? { adjustmentNotes } : {}),
+      }),
     });
 
     if (!n8nRes.ok) {
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    clearOrder();
+    clearOrder(supplier);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('approve error', err);
