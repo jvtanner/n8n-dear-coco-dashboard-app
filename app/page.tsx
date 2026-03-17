@@ -85,14 +85,26 @@ function pfTotal(order: PFOrderData): number {
   return PF_FLAVOURS.reduce((s, { key }) => s + (order[key] ?? 0), 0);
 }
 
-function orderTotal(o: PendingOrder): number {
-  return o.supplier === 'purpose-foods'
-    ? pfTotal(o.order as PFOrderData)
-    : hosTotal(o.order as HoSOrderData);
-}
-
 function deepCopyHoS(o: HoSOrderData): HoSOrderData {
   return { tuesday: { ...o.tuesday }, thursday: { ...o.thursday }, saturday: { ...o.saturday } };
+}
+
+function buildHoSRawInputs(order: HoSOrderData): Record<string, string> {
+  const r: Record<string, string> = {};
+  for (const { key: day } of HOS_DAYS) {
+    for (const { key: fk } of HOS_FLAVOURS) {
+      r[`${day}.${fk}`] = String(order[day][fk] ?? 0);
+    }
+  }
+  return r;
+}
+
+function buildPFRawInputs(order: PFOrderData): Record<string, string> {
+  const r: Record<string, string> = {};
+  for (const { key } of PF_FLAVOURS) {
+    r[key] = String(order[key] ?? 0);
+  }
+  return r;
 }
 
 // ── Style constants ───────────────────────────────────────────────────────────
@@ -106,7 +118,7 @@ const lbl: React.CSSProperties = { ...dm, fontSize: 10, letterSpacing: '0.1em', 
 type OrderState = {
   edited: HoSOrderData | PFOrderData;
   original: HoSOrderData | PFOrderData;
-  notes: string;
+  rawInputs: Record<string, string>;
   submitting: boolean;
   result: 'approved' | 'rejected' | null;
   error: string;
@@ -119,7 +131,10 @@ function initOrderState(order: PendingOrder): OrderState {
   const orig = order.supplier === 'purpose-foods'
     ? { ...(order.order as PFOrderData) }
     : deepCopyHoS(order.order as HoSOrderData);
-  return { edited: copy, original: orig, notes: '', submitting: false, result: null, error: '' };
+  const rawInputs = order.supplier === 'purpose-foods'
+    ? buildPFRawInputs(order.order as PFOrderData)
+    : buildHoSRawInputs(order.order as HoSOrderData);
+  return { edited: copy, original: orig, rawInputs, submitting: false, result: null, error: '' };
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -136,11 +151,13 @@ function FontLink() {
 // ── HoS order card ────────────────────────────────────────────────────────────
 
 function HoSCard({
-  order, state, onChange, onSubmit,
+  order, state,
+  onChange, onBlur, onSubmit,
 }: {
   order: PendingOrder;
   state: OrderState;
   onChange: (day: keyof HoSOrderData, flavour: keyof HoSDayOrder, value: string) => void;
+  onBlur: (day: keyof HoSOrderData, flavour: keyof HoSDayOrder) => void;
   onSubmit: (action: 'approved' | 'rejected') => void;
 }) {
   const edited   = state.edited as HoSOrderData;
@@ -154,9 +171,9 @@ function HoSCard({
   return (
     <div className="bg-white rounded-2xl border border-[#EDE3D5] overflow-hidden">
       {/* Card header */}
-      <div className="px-6 py-5 border-b border-[#EDE3D5] flex flex-wrap gap-x-8 gap-y-3 items-start justify-between bg-[#FDFAF5]">
+      <div className="px-7 py-6 border-b border-[#EDE3D5] flex flex-wrap gap-x-10 gap-y-4 items-start justify-between bg-[#FDFAF5]">
         <div>
-          <p style={lbl} className="mb-1">Supplier</p>
+          <p style={lbl} className="mb-1.5">Supplier</p>
           <p style={{ ...cg, fontSize: 22, fontWeight: 600 }} className="text-[#2C1A0E]">
             House of Sin
             <span style={{ ...dm, fontSize: 11, fontWeight: 400 }} className="ml-2 text-[#C8935A]">
@@ -165,15 +182,15 @@ function HoSCard({
           </p>
         </div>
         <div>
-          <p style={lbl} className="mb-1">Submitted by</p>
+          <p style={lbl} className="mb-1.5">Submitted by</p>
           <p style={{ ...dm, fontWeight: 500 }} className="text-[#2C1A0E]">{order.manager || '—'}</p>
         </div>
         <div>
-          <p style={lbl} className="mb-1">Received</p>
+          <p style={lbl} className="mb-1.5">Received</p>
           <p style={dm} className="text-[#2C1A0E] text-sm">{formatDate(order.receivedAt)}</p>
         </div>
         <div className="text-right">
-          <p style={lbl} className="mb-1">Total buns</p>
+          <p style={lbl} className="mb-1.5">Total buns</p>
           <p style={{ ...cg, fontSize: 22, fontWeight: 600 }} className="text-[#B8621A]">{total}</p>
         </div>
       </div>
@@ -186,31 +203,34 @@ function HoSCard({
           const daySum = HOS_FLAVOURS.reduce((s, { key: fk }) => s + (day[fk] ?? 0), 0);
           return (
             <div key={key}>
-              <div className="px-5 py-3 bg-[#FAF7F2] border-b border-[#EDE3D5] flex justify-between items-baseline">
+              <div className="px-6 py-4 bg-[#FAF7F2] border-b border-[#EDE3D5] flex justify-between items-baseline">
                 <span style={{ ...cg, fontSize: 17, fontWeight: 600 }} className="text-[#2C1A0E]">{label}</span>
                 <span style={{ ...dm, fontSize: 11 }} className="text-[#A89070]">{daySum} buns</span>
               </div>
               {HOS_FLAVOURS.map(({ key: fk, label: fl, icon }) => {
-                const cur     = day[fk] ?? 0;
+                const numVal  = day[fk] ?? 0;
                 const orgVal  = orig[fk] ?? 0;
-                const changed = cur !== orgVal;
+                const changed = numVal !== orgVal;
+                const rawKey  = `${key}.${fk}`;
+                const inputVal = state.rawInputs[rawKey] ?? String(numVal);
                 return (
-                  <div key={fk} className={`flex items-center justify-between px-5 py-2.5 border-b border-[#F2EBE0] last:border-0 ${changed ? 'bg-[#FFFCF5]' : ''}`}>
-                    <div className="flex items-center gap-2 min-w-0">
+                  <div key={fk} className={`flex items-center justify-between px-6 py-4 border-b border-[#F2EBE0] last:border-0 ${changed ? 'bg-[#FFFCF5]' : ''}`}>
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <span className="text-[#C8935A] text-xs select-none">{icon}</span>
-                      <span style={{ ...dm, fontSize: 12 }} className="text-[#3D2B1A] truncate">{fl}</span>
+                      <span style={{ ...dm, fontSize: 13 }} className="text-[#3D2B1A] truncate">{fl}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       {changed && (
                         <span style={{ ...dm, fontSize: 11 }} className="text-[#C8935A] line-through tabular-nums">{orgVal}</span>
                       )}
                       <input
                         type="number" min={0}
-                        value={cur}
+                        value={inputVal}
                         onChange={e => onChange(key, fk, e.target.value)}
+                        onBlur={() => onBlur(key, fk)}
                         disabled={state.submitting}
                         style={{ ...dm, fontSize: 13, fontWeight: 500 }}
-                        className={`w-14 text-center rounded-lg border py-1.5 focus:outline-none focus:ring-2 focus:ring-[#C8935A] transition-all disabled:opacity-50 ${
+                        className={`w-14 text-center rounded-lg border py-2 focus:outline-none focus:ring-2 focus:ring-[#C8935A] transition-all disabled:opacity-50 ${
                           changed ? 'border-[#C8935A] text-[#B8621A] bg-[#FEF3E2]' : 'border-[#EDE3D5] text-[#2C1A0E] bg-[#FAF7F0]'
                         }`}
                       />
@@ -223,7 +243,7 @@ function HoSCard({
         })}
       </div>
 
-      <OrderFooter order={order} state={state} hasEdits={hasEdits} onSubmit={onSubmit} />
+      <OrderFooter state={state} hasEdits={hasEdits} onSubmit={onSubmit} />
     </div>
   );
 }
@@ -231,11 +251,13 @@ function HoSCard({
 // ── PF order card ─────────────────────────────────────────────────────────────
 
 function PFCard({
-  order, state, onChange, onSubmit,
+  order, state,
+  onChange, onBlur, onSubmit,
 }: {
   order: PendingOrder;
   state: OrderState;
   onChange: (flavour: keyof PFOrderData, value: string) => void;
+  onBlur: (flavour: keyof PFOrderData) => void;
   onSubmit: (action: 'approved' | 'rejected') => void;
 }) {
   const edited   = state.edited as PFOrderData;
@@ -247,9 +269,9 @@ function PFCard({
   return (
     <div className="bg-white rounded-2xl border border-[#EDE3D5] overflow-hidden">
       {/* Card header */}
-      <div className="px-6 py-5 border-b border-[#EDE3D5] flex flex-wrap gap-x-8 gap-y-3 items-start justify-between bg-[#FDFAF5]">
+      <div className="px-7 py-6 border-b border-[#EDE3D5] flex flex-wrap gap-x-10 gap-y-4 items-start justify-between bg-[#FDFAF5]">
         <div>
-          <p style={lbl} className="mb-1">Supplier</p>
+          <p style={lbl} className="mb-1.5">Supplier</p>
           <p style={{ ...cg, fontSize: 22, fontWeight: 600 }} className="text-[#2C1A0E]">
             Purpose Foods
             <span style={{ ...dm, fontSize: 11, fontWeight: 400 }} className="ml-2 text-[#C8935A]">
@@ -258,47 +280,49 @@ function PFCard({
           </p>
         </div>
         <div>
-          <p style={lbl} className="mb-1">Submitted by</p>
+          <p style={lbl} className="mb-1.5">Submitted by</p>
           <p style={{ ...dm, fontWeight: 500 }} className="text-[#2C1A0E]">{order.manager || '—'}</p>
         </div>
         <div>
-          <p style={lbl} className="mb-1">Received</p>
+          <p style={lbl} className="mb-1.5">Received</p>
           <p style={dm} className="text-[#2C1A0E] text-sm">{formatDate(order.receivedAt)}</p>
         </div>
         <div className="text-right">
-          <p style={lbl} className="mb-1">Total units</p>
+          <p style={lbl} className="mb-1.5">Total units</p>
           <p style={{ ...cg, fontSize: 22, fontWeight: 600 }} className="text-[#B8621A]">{total}</p>
         </div>
       </div>
 
       {/* Flat flavour table */}
-      <div className="max-w-md mx-auto px-5 py-4">
+      <div className="max-w-md mx-auto px-6 py-5">
         <div className="rounded-xl border border-[#EDE3D5] overflow-hidden">
-          <div className="px-4 py-2.5 bg-[#FAF7F2] border-b border-[#EDE3D5] flex justify-between">
+          <div className="px-5 py-3.5 bg-[#FAF7F2] border-b border-[#EDE3D5] flex justify-between">
             <span style={{ ...lbl }}>Flavour</span>
             <span style={{ ...lbl }}>Qty</span>
           </div>
           {PF_FLAVOURS.map(({ key, label, icon }) => {
-            const cur     = edited[key] ?? 0;
+            const numVal  = edited[key] ?? 0;
             const orgVal  = original[key] ?? 0;
-            const changed = cur !== orgVal;
+            const changed = numVal !== orgVal;
+            const inputVal = state.rawInputs[key] ?? String(numVal);
             return (
-              <div key={key} className={`flex items-center justify-between px-4 py-3 border-b border-[#F2EBE0] last:border-0 ${changed ? 'bg-[#FFFCF5]' : ''}`}>
-                <div className="flex items-center gap-2">
+              <div key={key} className={`flex items-center justify-between px-5 py-4 border-b border-[#F2EBE0] last:border-0 ${changed ? 'bg-[#FFFCF5]' : ''}`}>
+                <div className="flex items-center gap-2.5">
                   <span className="text-[#C8935A] text-xs select-none">{icon}</span>
                   <span style={{ ...dm, fontSize: 13 }} className="text-[#3D2B1A]">{label}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   {changed && (
                     <span style={{ ...dm, fontSize: 11 }} className="text-[#C8935A] line-through tabular-nums">{orgVal}</span>
                   )}
                   <input
                     type="number" min={0}
-                    value={cur}
+                    value={inputVal}
                     onChange={e => onChange(key, e.target.value)}
+                    onBlur={() => onBlur(key)}
                     disabled={state.submitting}
                     style={{ ...dm, fontSize: 13, fontWeight: 500 }}
-                    className={`w-14 text-center rounded-lg border py-1.5 focus:outline-none focus:ring-2 focus:ring-[#C8935A] transition-all disabled:opacity-50 ${
+                    className={`w-14 text-center rounded-lg border py-2 focus:outline-none focus:ring-2 focus:ring-[#C8935A] transition-all disabled:opacity-50 ${
                       changed ? 'border-[#C8935A] text-[#B8621A] bg-[#FEF3E2]' : 'border-[#EDE3D5] text-[#2C1A0E] bg-[#FAF7F0]'
                     }`}
                   />
@@ -309,7 +333,7 @@ function PFCard({
         </div>
       </div>
 
-      <OrderFooter order={order} state={state} hasEdits={hasEdits} onSubmit={onSubmit} />
+      <OrderFooter state={state} hasEdits={hasEdits} onSubmit={onSubmit} />
     </div>
   );
 }
@@ -319,7 +343,6 @@ function PFCard({
 function OrderFooter({
   state, hasEdits, onSubmit,
 }: {
-  order: PendingOrder;
   state: OrderState;
   hasEdits: boolean;
   onSubmit: (action: 'approved' | 'rejected') => void;
@@ -327,7 +350,7 @@ function OrderFooter({
   if (state.result) {
     const approved = state.result === 'approved';
     return (
-      <div className={`mx-6 mb-6 mt-2 p-5 rounded-2xl text-center ${approved ? 'bg-[#EEF6F1] border border-[#B6D9C3]' : 'bg-[#FBF0EF] border border-[#F0C4C0]'}`}>
+      <div className={`mx-6 mb-7 mt-2 p-6 rounded-2xl text-center ${approved ? 'bg-[#EEF6F1] border border-[#B6D9C3]' : 'bg-[#FBF0EF] border border-[#F0C4C0]'}`}>
         <div style={{ fontSize: 28 }} className="mb-2 select-none">{approved ? '✦' : '✕'}</div>
         <p style={{ ...cg, fontSize: 18, fontWeight: 600 }} className={approved ? 'text-[#2A5C3F]' : 'text-[#8B3A3A]'}>
           {approved ? 'Order sent!' : 'Order rejected'}
@@ -337,9 +360,9 @@ function OrderFooter({
   }
 
   return (
-    <div className="px-6 pb-6 pt-4 space-y-4 border-t border-[#EDE3D5] mt-1">
+    <div className="px-7 pb-7 pt-5 space-y-4 border-t border-[#EDE3D5]">
       {hasEdits && (
-        <div className="flex items-start gap-2 p-3 rounded-xl bg-[#FEF3E2] border border-[#F0D5A8]">
+        <div className="flex items-start gap-2 p-3.5 rounded-xl bg-[#FEF3E2] border border-[#F0D5A8]">
           <span className="text-[#B8621A] select-none mt-px">✎</span>
           <p style={{ ...dm, fontSize: 12 }} className="text-[#9A6B2C]">
             You&rsquo;ve made changes to the original order.
@@ -347,7 +370,7 @@ function OrderFooter({
         </div>
       )}
       {state.error && (
-        <div className="flex items-start gap-2 p-3 rounded-xl bg-[#FBF0EF] border border-[#F0C4C0]">
+        <div className="flex items-start gap-2 p-3.5 rounded-xl bg-[#FBF0EF] border border-[#F0C4C0]">
           <span className="text-[#8B3A3A] select-none mt-px">⚠</span>
           <p style={{ ...dm, fontSize: 12 }} className="text-[#8B3A3A]">{state.error}</p>
         </div>
@@ -357,7 +380,7 @@ function OrderFooter({
           onClick={() => onSubmit('approved')}
           disabled={state.submitting}
           style={{ ...dm, fontWeight: 500, fontSize: 14 }}
-          className="flex-1 py-3 rounded-xl text-white bg-[#2A5C3F] hover:bg-[#22503A] active:bg-[#1B4230] disabled:opacity-50 transition-colors"
+          className="flex-1 py-3.5 rounded-xl text-white bg-[#2A5C3F] hover:bg-[#22503A] active:bg-[#1B4230] disabled:opacity-50 transition-colors"
         >
           {state.submitting ? 'Sending…' : '✓  Approve & Send'}
         </button>
@@ -365,7 +388,7 @@ function OrderFooter({
           onClick={() => onSubmit('rejected')}
           disabled={state.submitting}
           style={{ ...dm, fontWeight: 500, fontSize: 14 }}
-          className="w-28 py-3 rounded-xl border border-[#D4928A] text-[#8B3A3A] hover:bg-[#FBF0EF] disabled:opacity-50 transition-colors"
+          className="w-28 py-3.5 rounded-xl border border-[#D4928A] text-[#8B3A3A] hover:bg-[#FBF0EF] disabled:opacity-50 transition-colors"
         >
           Reject
         </button>
@@ -397,7 +420,6 @@ export default function Dashboard() {
         setStates(prev => {
           const next = { ...prev } as Record<Supplier, OrderState>;
           for (const o of incoming) {
-            // Only init state for new orders
             if (!prev[o.supplier] || prev[o.supplier].result) {
               next[o.supplier] = initOrderState(o);
             }
@@ -425,24 +447,70 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, [fetchOrders]);
 
+  // ── HoS quantity update ────────────────────────────────────────────────────
+
   function updateHoSQty(supplier: Supplier, day: keyof HoSOrderData, flavour: keyof HoSDayOrder, value: string) {
-    const num = Math.max(0, parseInt(value, 10) || 0);
+    const num = value === '' ? 0 : Math.max(0, parseInt(value, 10) || 0);
+    const rawKey = `${day}.${flavour}`;
     setStates(prev => {
       const s = prev[supplier];
       if (!s) return prev;
       const edited = s.edited as HoSOrderData;
-      return { ...prev, [supplier]: { ...s, edited: { ...edited, [day]: { ...edited[day], [flavour]: num } } } };
+      return {
+        ...prev,
+        [supplier]: {
+          ...s,
+          edited: { ...edited, [day]: { ...edited[day], [flavour]: num } },
+          rawInputs: { ...s.rawInputs, [rawKey]: value },
+        },
+      };
     });
   }
 
-  function updatePFQty(supplier: Supplier, flavour: keyof PFOrderData, value: string) {
-    const num = Math.max(0, parseInt(value, 10) || 0);
+  function blurHoSQty(supplier: Supplier, day: keyof HoSOrderData, flavour: keyof HoSDayOrder) {
+    const rawKey = `${day}.${flavour}`;
     setStates(prev => {
       const s = prev[supplier];
       if (!s) return prev;
-      return { ...prev, [supplier]: { ...s, edited: { ...(s.edited as PFOrderData), [flavour]: num } } };
+      const cur = s.rawInputs[rawKey] ?? '';
+      if (cur === '' || isNaN(Number(cur))) {
+        return { ...prev, [supplier]: { ...s, rawInputs: { ...s.rawInputs, [rawKey]: '0' } } };
+      }
+      return prev;
     });
   }
+
+  // ── PF quantity update ─────────────────────────────────────────────────────
+
+  function updatePFQty(supplier: Supplier, flavour: keyof PFOrderData, value: string) {
+    const num = value === '' ? 0 : Math.max(0, parseInt(value, 10) || 0);
+    setStates(prev => {
+      const s = prev[supplier];
+      if (!s) return prev;
+      return {
+        ...prev,
+        [supplier]: {
+          ...s,
+          edited: { ...(s.edited as PFOrderData), [flavour]: num },
+          rawInputs: { ...s.rawInputs, [flavour]: value },
+        },
+      };
+    });
+  }
+
+  function blurPFQty(supplier: Supplier, flavour: keyof PFOrderData) {
+    setStates(prev => {
+      const s = prev[supplier];
+      if (!s) return prev;
+      const cur = s.rawInputs[flavour] ?? '';
+      if (cur === '' || isNaN(Number(cur))) {
+        return { ...prev, [supplier]: { ...s, rawInputs: { ...s.rawInputs, [flavour]: '0' } } };
+      }
+      return prev;
+    });
+  }
+
+  // ── Submit ─────────────────────────────────────────────────────────────────
 
   async function handleSubmit(supplier: Supplier, action: 'approved' | 'rejected') {
     const s = states[supplier];
@@ -501,7 +569,7 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8">
           {!loaded ? (
             <div className="flex flex-col items-center justify-center gap-3" style={{ minHeight: '60vh' }}>
               <span className="text-4xl animate-spin" style={{ animationDuration: '3s', display: 'inline-block' }}>🌀</span>
@@ -526,13 +594,13 @@ export default function Dashboard() {
             <>
               {/* Venue / meta bar */}
               {orders[0] && (
-                <div className="bg-white rounded-2xl border border-[#EDE3D5] px-6 py-4 flex flex-wrap gap-x-8 gap-y-3 items-center">
+                <div className="bg-white rounded-2xl border border-[#EDE3D5] px-7 py-5 flex flex-wrap gap-x-10 gap-y-3 items-center">
                   <div>
-                    <p style={lbl} className="mb-0.5">Venue</p>
+                    <p style={lbl} className="mb-1">Venue</p>
                     <p style={{ ...cg, fontSize: 22, fontWeight: 600 }} className="text-[#2C1A0E]">{orders[0].venue}</p>
                   </div>
                   <div>
-                    <p style={lbl} className="mb-0.5">Orders pending</p>
+                    <p style={lbl} className="mb-1">Orders pending</p>
                     <p style={{ ...dm, fontWeight: 500 }} className="text-[#2C1A0E]">
                       {orders.map(o => SUPPLIER_LABEL[o.supplier]).join(' · ')}
                     </p>
@@ -550,14 +618,14 @@ export default function Dashboard() {
                     <div key={order.supplier}>
                       <PFCard
                         order={order}
-                        state={{ ...s, notes: notes[order.supplier] ?? '' }}
+                        state={s}
                         onChange={(flavour, value) => updatePFQty(order.supplier, flavour, value)}
+                        onBlur={flavour => blurPFQty(order.supplier, flavour)}
                         onSubmit={action => handleSubmit(order.supplier, action)}
                       />
-                      {/* Notes textarea outside the card so it can be controlled here */}
                       {!s.result && (
-                        <div className="mt-2 px-1">
-                          <label style={lbl} className="block mb-1.5">
+                        <div className="mt-3 px-1">
+                          <label style={lbl} className="block mb-2">
                             Reason for changes{' '}
                             <span className="text-[#C8BBA8] normal-case tracking-normal" style={{ textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
                           </label>
@@ -567,7 +635,7 @@ export default function Dashboard() {
                             placeholder="e.g. Increased Almond Choc Chip — sold out last time"
                             rows={2}
                             style={{ ...dm, fontSize: 13 }}
-                            className="w-full border border-[#EDE3D5] rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#C8935A] resize-none placeholder-[#C8BBA8] bg-white text-[#2C1A0E] transition-colors"
+                            className="w-full border border-[#EDE3D5] rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#C8935A] resize-none placeholder-[#C8BBA8] bg-white text-[#2C1A0E] transition-colors"
                           />
                         </div>
                       )}
@@ -579,13 +647,14 @@ export default function Dashboard() {
                   <div key={order.supplier}>
                     <HoSCard
                       order={order}
-                      state={{ ...s, notes: notes[order.supplier] ?? '' }}
+                      state={s}
                       onChange={(day, flavour, value) => updateHoSQty(order.supplier, day, flavour, value)}
+                      onBlur={(day, flavour) => blurHoSQty(order.supplier, day, flavour)}
                       onSubmit={action => handleSubmit(order.supplier, action)}
                     />
                     {!s.result && (
-                      <div className="mt-2 px-1">
-                        <label style={lbl} className="block mb-1.5">
+                      <div className="mt-3 px-1">
+                        <label style={lbl} className="block mb-2">
                           Reason for changes{' '}
                           <span className="text-[#C8BBA8] normal-case tracking-normal" style={{ textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
                         </label>
@@ -595,7 +664,7 @@ export default function Dashboard() {
                           placeholder="e.g. Reduced Thursday plain by 5 — bank holiday next week"
                           rows={2}
                           style={{ ...dm, fontSize: 13 }}
-                          className="w-full border border-[#EDE3D5] rounded-xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#C8935A] resize-none placeholder-[#C8BBA8] bg-white text-[#2C1A0E] transition-colors"
+                          className="w-full border border-[#EDE3D5] rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#C8935A] resize-none placeholder-[#C8BBA8] bg-white text-[#2C1A0E] transition-colors"
                         />
                       </div>
                     )}
