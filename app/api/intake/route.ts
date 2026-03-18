@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveOrder } from '@/lib/orderStore';
-import type { Supplier, HoSOrderData, HoSDayOrder, PFOrderData, TCROrderData } from '@/lib/orderStore';
+import type { Supplier, HoSOrderData, HoSDayOrder, PFOrderData, TCROrderData, GenericOrderData } from '@/lib/orderStore';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,21 +61,27 @@ export async function POST(req: NextRequest) {
       body.callbackUrl ?? 'https://joshuavtanner.app.n8n.cloud/webhook/order-approved';
 
     const supplier: Supplier =
-      callbackUrl.includes('order-approved-tcr') ? 'triple-co-roast' :
-      callbackUrl.includes('order-approved-pf')  ? 'purpose-foods'   :
+      callbackUrl.includes('order-approved-tcr')      ? 'triple-co-roast' :
+      callbackUrl.includes('order-approved-pf')       ? 'purpose-foods'   :
+      callbackUrl.includes('order-approved-cups')     ? 'cups-direct'     :
+      callbackUrl.includes('order-approved-cakehead') ? 'cakehead'        :
+      callbackUrl.includes('order-approved-amazon')   ? 'amazon-uk'       :
       'house-of-sin';
 
     const rawOrder = typeof body.order === 'string' ? JSON.parse(body.order) : body.order;
+    const isGeneric = supplier === 'cups-direct' || supplier === 'cakehead' || supplier === 'amazon-uk';
     const order =
       supplier === 'triple-co-roast' ? normalizeTCR(rawOrder) :
       supplier === 'purpose-foods'   ? normalizePF(rawOrder)  :
+      isGeneric                      ? ((rawOrder ?? {}) as GenericOrderData) :
       normalizeHoS(rawOrder);
 
     saveOrder({
       supplier,
-      venue:       body.venue   ?? 'Dear Coco',
-      manager:     body.manager ?? '',
+      venue:       body.venue     ?? 'Dear Coco',
+      manager:     body.manager   ?? '',
       order,
+      htmlEmail:   body.htmlEmail,
       callbackUrl,
       receivedAt:  new Date().toISOString(),
       status:      'pending',

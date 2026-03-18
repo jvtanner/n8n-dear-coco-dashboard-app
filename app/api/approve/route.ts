@@ -20,10 +20,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'No pending order found for supplier' }, { status: 404 });
     }
 
-    const htmlEmail =
-      supplier === 'triple-co-roast' ? generateTCREmail(order as unknown as TCROrderData, stored.venue, stored.manager, adjustmentNotes) :
-      supplier === 'purpose-foods'   ? generatePFEmail(order as unknown as PFOrderData, stored.venue, stored.manager, adjustmentNotes)   :
-      generateHoSEmail(order as unknown as HoSOrderData, stored.venue, stored.manager, adjustmentNotes);
+    const isGeneric = supplier === 'cups-direct' || supplier === 'cakehead' || supplier === 'amazon-uk';
+    const htmlEmail = isGeneric
+      ? (stored.htmlEmail ?? '')
+      : supplier === 'triple-co-roast' ? generateTCREmail(order as unknown as TCROrderData, stored.venue, stored.manager, adjustmentNotes)
+      : supplier === 'purpose-foods'   ? generatePFEmail(order as unknown as PFOrderData, stored.venue, stored.manager, adjustmentNotes)
+      : generateHoSEmail(order as unknown as HoSOrderData, stored.venue, stored.manager, adjustmentNotes);
 
     const n8nRes = await fetch(stored.callbackUrl, {
       method: 'POST',

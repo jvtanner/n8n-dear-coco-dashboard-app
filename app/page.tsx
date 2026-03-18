@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type Supplier = 'house-of-sin' | 'purpose-foods' | 'triple-co-roast';
+type Supplier = 'house-of-sin' | 'purpose-foods' | 'triple-co-roast' | 'cups-direct' | 'cakehead' | 'amazon-uk';
 
 type HoSDayOrder = {
   plain: number;
@@ -37,11 +37,14 @@ type TCROrderData = {
   rwandaRwamatamu: number;
 };
 
+type GenericOrderData = Record<string, number>;
+
 type PendingOrder = {
   supplier: Supplier;
   venue: string;
   manager: string;
-  order: HoSOrderData | PFOrderData | TCROrderData;
+  order: HoSOrderData | PFOrderData | TCROrderData | GenericOrderData;
+  htmlEmail?: string;
   callbackUrl: string;
   receivedAt: string;
   status: 'pending';
@@ -84,6 +87,18 @@ const SUPPLIER_LABEL: Record<Supplier, string> = {
   'house-of-sin':    'House of Sin',
   'purpose-foods':   'Purpose Foods',
   'triple-co-roast': 'Triple Co Roast',
+  'cups-direct':     'Cups Direct',
+  'cakehead':        'Cakehead',
+  'amazon-uk':       'Amazon UK',
+};
+
+const SUPPLIER_SUBTITLE: Record<Supplier, string> = {
+  'house-of-sin':    'Cinnamon Buns',
+  'purpose-foods':   'Protein Balls',
+  'triple-co-roast': 'Coffee',
+  'cups-direct':     'Disposables',
+  'cakehead':        'Bakery',
+  'amazon-uk':       'Sundries',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -158,17 +173,21 @@ type OrderState = {
 };
 
 function initOrderState(order: PendingOrder): OrderState {
+  const isGeneric = order.supplier === 'cups-direct' || order.supplier === 'cakehead' || order.supplier === 'amazon-uk';
   const copy =
     order.supplier === 'triple-co-roast' ? { ...(order.order as TCROrderData) } :
     order.supplier === 'purpose-foods'   ? { ...(order.order as PFOrderData) }  :
+    isGeneric                            ? { ...(order.order as GenericOrderData) } :
     deepCopyHoS(order.order as HoSOrderData);
   const orig =
     order.supplier === 'triple-co-roast' ? { ...(order.order as TCROrderData) } :
     order.supplier === 'purpose-foods'   ? { ...(order.order as PFOrderData) }  :
+    isGeneric                            ? { ...(order.order as GenericOrderData) } :
     deepCopyHoS(order.order as HoSOrderData);
   const rawInputs =
     order.supplier === 'triple-co-roast' ? buildTCRRawInputs(order.order as TCROrderData) :
     order.supplier === 'purpose-foods'   ? buildPFRawInputs(order.order as PFOrderData)   :
+    isGeneric                            ? {} :
     buildHoSRawInputs(order.order as HoSOrderData);
   return { edited: copy, original: orig, rawInputs, submitting: false, result: null, error: '' };
 }
@@ -460,6 +479,72 @@ function TCRCard({
       </div>
 
       <OrderFooter state={state} hasEdits={hasEdits} onSubmit={onSubmit} />
+    </div>
+  );
+}
+
+// ── Generic order card (Cups Direct / Cakehead / Amazon UK) ──────────────────
+
+function GenericCard({
+  order, state, onSubmit,
+}: {
+  order: PendingOrder;
+  state: OrderState;
+  onSubmit: (action: 'approved' | 'rejected') => void;
+}) {
+  const items = Object.entries(order.order as GenericOrderData).filter(([, qty]) => qty > 0);
+  const total = items.reduce((s, [, qty]) => s + qty, 0);
+
+  return (
+    <div className="bg-white rounded-2xl border border-[#EDE3D5] overflow-hidden">
+      <div className="px-7 py-6 border-b border-[#EDE3D5] flex flex-wrap gap-x-10 gap-y-4 items-start justify-between bg-[#FDFAF5]">
+        <div>
+          <p style={lbl} className="mb-1.5">Supplier</p>
+          <p style={{ ...cg, fontSize: 22, fontWeight: 600 }} className="text-[#2C1A0E]">
+            {SUPPLIER_LABEL[order.supplier]}
+            <span style={{ ...dm, fontSize: 11, fontWeight: 400 }} className="ml-2 text-[#C8935A]">
+              {SUPPLIER_SUBTITLE[order.supplier]}
+            </span>
+          </p>
+        </div>
+        <div>
+          <p style={lbl} className="mb-1.5">Submitted by</p>
+          <p style={{ ...dm, fontWeight: 500 }} className="text-[#2C1A0E]">{order.manager || '—'}</p>
+        </div>
+        <div>
+          <p style={lbl} className="mb-1.5">Received</p>
+          <p style={dm} className="text-[#2C1A0E] text-sm">{formatDate(order.receivedAt)}</p>
+        </div>
+        <div className="text-right">
+          <p style={lbl} className="mb-1.5">Total units</p>
+          <p style={{ ...cg, fontSize: 22, fontWeight: 600 }} className="text-[#B8621A]">{total}</p>
+        </div>
+      </div>
+
+      {items.length > 0 && (
+        <div className="max-w-md mx-auto px-6 py-5">
+          <div className="rounded-xl border border-[#EDE3D5] overflow-hidden">
+            <div className="px-5 py-3.5 bg-[#FAF7F2] border-b border-[#EDE3D5] flex justify-between">
+              <span style={lbl}>Item</span>
+              <span style={lbl}>Qty</span>
+            </div>
+            {items.map(([key, qty]) => (
+              <div key={key} className="flex items-center justify-between px-5 py-4 border-b border-[#F2EBE0] last:border-0">
+                <span style={{ ...dm, fontSize: 13 }} className="text-[#3D2B1A]">{key}</span>
+                <span style={{ ...dm, fontSize: 13, fontWeight: 500 }} className="text-[#2C1A0E] tabular-nums">{qty}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="px-7 pb-5 pt-2">
+        <p style={{ ...dm, fontSize: 11 }} className="text-[#9A7B5C]">
+          Approving will send a cart link email to the manager to complete checkout.
+        </p>
+      </div>
+
+      <OrderFooter state={state} hasEdits={false} onSubmit={onSubmit} />
     </div>
   );
 }
@@ -768,6 +853,18 @@ export default function Dashboard() {
               {orders.map(order => {
                 const s = states[order.supplier];
                 if (!s) return null;
+
+                if (order.supplier === 'cups-direct' || order.supplier === 'cakehead' || order.supplier === 'amazon-uk') {
+                  return (
+                    <div key={order.supplier}>
+                      <GenericCard
+                        order={order}
+                        state={s}
+                        onSubmit={action => handleSubmit(order.supplier, action)}
+                      />
+                    </div>
+                  );
+                }
 
                 if (order.supplier === 'triple-co-roast') {
                   return (
