@@ -164,8 +164,8 @@ const lbl: React.CSSProperties = { ...dm, fontSize: 10, letterSpacing: '0.1em', 
 // ── Per-order state ───────────────────────────────────────────────────────────
 
 type OrderState = {
-  edited: HoSOrderData | PFOrderData | TCROrderData;
-  original: HoSOrderData | PFOrderData | TCROrderData;
+  edited: HoSOrderData | PFOrderData | TCROrderData | GenericOrderData;
+  original: HoSOrderData | PFOrderData | TCROrderData | GenericOrderData;
   rawInputs: Record<string, string>;
   submitting: boolean;
   result: 'approved' | 'rejected' | null;
