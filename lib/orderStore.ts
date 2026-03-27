@@ -2,8 +2,38 @@ import { writeFileSync, readFileSync, existsSync } from 'fs';
 
 const TMP_PATH = '/tmp/dear-coco-orders.json';
 
-export type Supplier = 'house-of-sin' | 'purpose-foods' | 'triple-co-roast' | 'cups-direct' | 'cakehead' | 'amazon-uk';
+export type Supplier =
+  | 'house-of-sin'
+  | 'purpose-foods'
+  | 'triple-co-roast'
+  | 'cups-direct'
+  | 'cakehead'
+  | 'amazon-uk'
+  | 'carrier-bag-shop'
+  | 'nisbets';
 
+export type OrderItem = {
+  name: string;
+  quantity: number;
+  group?: string;
+  unit?: string;
+};
+
+export type PendingOrder = {
+  supplier: Supplier;
+  supplierLabel: string;
+  category: string;
+  orderType: 'email' | 'portal';
+  venue: string;
+  manager: string;
+  items: OrderItem[];
+  htmlEmail?: string;
+  callbackUrl: string;
+  receivedAt: string;
+  status: 'pending';
+};
+
+// --- Legacy types for backward compatibility during migration ---
 export type HoSDayOrder = {
   plain: number;
   classicCreamCheese: number;
@@ -36,19 +66,8 @@ export type TCROrderData = {
 };
 
 export type GenericOrderData = Record<string, number>;
+// --- End legacy types ---
 
-export type PendingOrder = {
-  supplier: Supplier;
-  venue: string;
-  manager: string;
-  order: HoSOrderData | PFOrderData | TCROrderData | GenericOrderData;
-  htmlEmail?: string;
-  callbackUrl: string;
-  receivedAt: string;
-  status: 'pending';
-};
-
-// Module-level store keyed by supplier — survives within a warm Lambda instance
 const orders = new Map<Supplier, PendingOrder>();
 
 function persist() {

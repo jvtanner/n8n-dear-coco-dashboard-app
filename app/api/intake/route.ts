@@ -1,56 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { saveOrder } from '@/lib/orderStore';
-import type { Supplier, HoSOrderData, HoSDayOrder, PFOrderData, TCROrderData, GenericOrderData } from '@/lib/orderStore';
+import type { Supplier, OrderItem } from '@/lib/orderStore';
 
 export const dynamic = 'force-dynamic';
+
+const SUPPLIER_META: Record<Supplier, { label: string; category: string; orderType: 'email' | 'portal' }> = {
+  'house-of-sin':    { label: 'House of Sin',    category: 'Cinnamon Buns',            orderType: 'email' },
+  'purpose-foods':   { label: 'Purpose Foods',   category: 'Protein Balls',            orderType: 'email' },
+  'triple-co-roast': { label: 'Triple Co Roast', category: 'Coffee',                   orderType: 'portal' },
+  'cups-direct':     { label: 'Cups Direct',     category: 'Disposable Packaging',     orderType: 'portal' },
+  'cakehead':        { label: 'Cakehead',        category: 'Bakes',                    orderType: 'portal' },
+  'amazon-uk':       { label: 'Amazon UK',       category: 'Miscellaneous',            orderType: 'portal' },
+  'carrier-bag-shop':{ label: 'Carrier Bag Shop', category: 'Paper Bags',              orderType: 'portal' },
+  'nisbets':         { label: 'Nisbets',         category: 'Catering Supplies',        orderType: 'portal' },
+};
 
 function toNum(v: unknown): number {
   return Math.max(0, Number(v) || 0);
 }
 
-function normalizeHoSDay(d: unknown): HoSDayOrder {
-  const s = (d && typeof d === 'object' ? d : {}) as Record<string, unknown>;
-  return {
-    plain:                 toNum(s.plain),
-    classicCreamCheese:    toNum(s.classicCreamCheese),
-    saltedCaramelAndPecan: toNum(s.saltedCaramelAndPecan),
-    lotusBiscoff:          toNum(s.lotusBiscoff),
-  };
+function identifySupplier(callbackUrl: string): Supplier {
+  if (callbackUrl.includes('order-approved-tcr'))             return 'triple-co-roast';
+  if (callbackUrl.includes('order-approved-pf'))              return 'purpose-foods';
+  if (callbackUrl.includes('order-approved-cups'))            return 'cups-direct';
+  if (callbackUrl.includes('order-approved-cakehead'))        return 'cakehead';
+  if (callbackUrl.includes('order-approved-amazon'))          return 'amazon-uk';
+  if (callbackUrl.includes('order-approved-carrier-bag-shop'))return 'carrier-bag-shop';
+  if (callbackUrl.includes('order-approved-nisbets'))         return 'nisbets';
+  return 'house-of-sin';
 }
 
-function normalizeHoS(raw: unknown): HoSOrderData {
-  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  return {
-    tuesday:  normalizeHoSDay(s.tuesday),
-    thursday: normalizeHoSDay(s.thursday),
-    saturday: normalizeHoSDay(s.saturday),
+function legacyHoSToItems(raw: Record<string, unknown>): OrderItem[] {
+  const items: OrderItem[] = [];
+  const flavourLabels: Record<string, string> = {
+    plain: 'Plain', classicCreamCheese: 'Classic Cream Cheese',
+    saltedCaramelAndPecan: 'Salted Caramel & Pecan', lotusBiscoff: 'Lotus Biscoff',
   };
+  for (const day of ['tuesday', 'thursday', 'saturday']) {
+    const dayData = (raw[day] ?? {}) as Record<string, unknown>;
+    for (const [key, label] of Object.entries(flavourLabels)) {
+      const qty = toNum(dayData[key]);
+      if (qty > 0) items.push({ name: label, quantity: qty, group: day.charAt(0).toUpperCase() + day.slice(1) });
+    }
+  }
+  return items;
 }
 
-function normalizePF(raw: unknown): PFOrderData {
-  const s = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  return {
-    almondChocChip:   toNum(s.almondChocChip),
-    raspberryCoconut: toNum(s.raspberryCoconut),
-    crunchyBrownie:   toNum(s.crunchyBrownie),
-    saltedCaramel:    toNum(s.saltedCaramel),
-    lemonCoconut:     toNum(s.lemonCoconut),
+function legacyPFToItems(raw: Record<string, unknown>): OrderItem[] {
+  const labels: Record<string, string> = {
+    almondChocChip: 'Almond Choc Chip', raspberryCoconut: 'Raspberry Coconut',
+    crunchyBrownie: 'Crunchy Brownie', saltedCaramel: 'Salted Caramel', lemonCoconut: 'Lemon Coconut',
   };
+  return Object.entries(labels).map(([key, label]) => ({ name: label, quantity: toNum(raw[key]) })).filter(i => i.quantity > 0);
 }
 
-function normalizeTCR(raw: unknown): TCROrderData {
-  // WF1 may wrap the order under a `tripleCo` key
-  const outer = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
-  const s = (outer.tripleCo && typeof outer.tripleCo === 'object' ? outer.tripleCo : outer) as Record<string, unknown>;
-  return {
-    bs1Espresso:     toNum(s.bs1Espresso),
-    cruiseControl:   toNum(s.cruiseControl),
-    jumpstart:       toNum(s.jumpstart),
-    mixtape:         toNum(s.mixtape),
-    shopFilter:      toNum(s.shopFilter),
-    ethiopiaDanche:  toNum(s.ethiopiaDanche),
-    rwandaRwamatamu: toNum(s.rwandaRwamatamu),
+function legacyTCRToItems(raw: Record<string, unknown>): OrderItem[] {
+  const outer = (raw.tripleCo && typeof raw.tripleCo === 'object' ? raw.tripleCo : raw) as Record<string, unknown>;
+  const labels: Record<string, string> = {
+    bs1Espresso: 'BS1 Espresso', cruiseControl: 'Cruise Control', jumpstart: 'Jumpstart',
+    mixtape: 'Mixtape', shopFilter: 'Shop Filter', ethiopiaDanche: 'Ethiopia Danche', rwandaRwamatamu: 'Rwanda Rwamatamu',
   };
+  return Object.entries(labels).map(([key, label]) => ({ name: label, quantity: toNum(outer[key]), unit: '1kg bags' })).filter(i => i.quantity > 0);
+}
+
+function legacyGenericToItems(raw: Record<string, unknown>): OrderItem[] {
+  return Object.entries(raw).map(([name, qty]) => ({ name, quantity: toNum(qty) })).filter(i => i.quantity > 0);
 }
 
 export async function POST(req: NextRequest) {
@@ -60,31 +74,37 @@ export async function POST(req: NextRequest) {
     const callbackUrl: string =
       body.callbackUrl ?? 'https://joshuavtanner.app.n8n.cloud/webhook/order-approved';
 
-    const supplier: Supplier =
-      callbackUrl.includes('order-approved-tcr')      ? 'triple-co-roast' :
-      callbackUrl.includes('order-approved-pf')       ? 'purpose-foods'   :
-      callbackUrl.includes('order-approved-cups')     ? 'cups-direct'     :
-      callbackUrl.includes('order-approved-cakehead') ? 'cakehead'        :
-      callbackUrl.includes('order-approved-amazon')   ? 'amazon-uk'       :
-      'house-of-sin';
+    const supplier: Supplier = body.supplier ?? identifySupplier(callbackUrl);
+    const meta = SUPPLIER_META[supplier];
 
-    const rawOrder = typeof body.order === 'string' ? JSON.parse(body.order) : body.order;
-    const isGeneric = supplier === 'cups-direct' || supplier === 'cakehead' || supplier === 'amazon-uk';
-    const order =
-      supplier === 'triple-co-roast' ? normalizeTCR(rawOrder) :
-      supplier === 'purpose-foods'   ? normalizePF(rawOrder)  :
-      isGeneric                      ? ((rawOrder ?? {}) as GenericOrderData) :
-      normalizeHoS(rawOrder);
+    let items: OrderItem[];
+    if (Array.isArray(body.items)) {
+      items = body.items;
+    } else {
+      const rawOrder = typeof body.order === 'string' ? JSON.parse(body.order) : (body.order ?? {});
+      if (supplier === 'house-of-sin') {
+        items = legacyHoSToItems(rawOrder);
+      } else if (supplier === 'purpose-foods') {
+        items = legacyPFToItems(rawOrder);
+      } else if (supplier === 'triple-co-roast') {
+        items = legacyTCRToItems(rawOrder);
+      } else {
+        items = legacyGenericToItems(rawOrder);
+      }
+    }
 
     saveOrder({
       supplier,
-      venue:       body.venue     ?? 'Dear Coco',
-      manager:     body.manager   ?? '',
-      order,
-      htmlEmail:   body.htmlEmail,
+      supplierLabel: body.supplierLabel ?? meta.label,
+      category:      body.category ?? meta.category,
+      orderType:     body.orderType ?? meta.orderType,
+      venue:         body.venue ?? 'Dear Coco',
+      manager:       body.manager ?? '',
+      items,
+      htmlEmail:     body.htmlEmail,
       callbackUrl,
-      receivedAt:  new Date().toISOString(),
-      status:      'pending',
+      receivedAt:    new Date().toISOString(),
+      status:        'pending',
     });
 
     return NextResponse.json({ success: true });

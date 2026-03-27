@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllOrders, clearOrder } from '@/lib/orderStore';
-import { generateHoSEmail, generatePFEmail, generateTCREmail } from '@/lib/htmlEmail';
-import type { Supplier, HoSOrderData, PFOrderData, TCROrderData } from '@/lib/orderStore';
+import { generateUniversalEmail } from '@/lib/htmlEmail';
+import type { Supplier, OrderItem } from '@/lib/orderStore';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, supplier, order, adjustmentNotes } = body as {
+    const { action, supplier, items, adjustmentNotes } = body as {
       action: 'approved' | 'rejected';
       supplier: Supplier;
-      order: HoSOrderData | PFOrderData;
+      items?: OrderItem[];
       adjustmentNotes?: string;
     };
 
@@ -20,12 +20,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'No pending order found for supplier' }, { status: 404 });
     }
 
-    const isGeneric = supplier === 'cups-direct' || supplier === 'cakehead' || supplier === 'amazon-uk';
-    const htmlEmail = isGeneric
-      ? (stored.htmlEmail ?? '')
-      : supplier === 'triple-co-roast' ? generateTCREmail(order as unknown as TCROrderData, stored.venue, stored.manager, adjustmentNotes)
-      : supplier === 'purpose-foods'   ? generatePFEmail(order as unknown as PFOrderData, stored.venue, stored.manager, adjustmentNotes)
-      : generateHoSEmail(order as unknown as HoSOrderData, stored.venue, stored.manager, adjustmentNotes);
+    const orderItems = items ?? stored.items;
+
+    const htmlEmail = generateUniversalEmail(
+      orderItems,
+      stored.supplierLabel,
+      stored.orderType,
+      stored.venue,
+      stored.manager,
+      stored.category,
+      adjustmentNotes
+    );
 
     const n8nRes = await fetch(stored.callbackUrl, {
       method: 'POST',
@@ -33,9 +38,9 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({
         action,
         htmlEmail,
-        venue:   stored.venue,
+        venue: stored.venue,
         manager: stored.manager,
-        order,
+        items: orderItems,
         ...(adjustmentNotes ? { adjustmentNotes } : {}),
       }),
     });
