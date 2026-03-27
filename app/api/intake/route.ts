@@ -78,8 +78,9 @@ export async function POST(req: NextRequest) {
     const meta = SUPPLIER_META[supplier];
 
     let items: OrderItem[];
-    if (Array.isArray(body.items)) {
-      items = body.items;
+    const rawItems = typeof body.items === 'string' ? JSON.parse(body.items) : body.items;
+    if (Array.isArray(rawItems)) {
+      items = rawItems;
     } else {
       const rawOrder = typeof body.order === 'string' ? JSON.parse(body.order) : (body.order ?? {});
       if (supplier === 'house-of-sin') {
@@ -113,3 +114,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: String(err) }, { status: 400 });
   }
 }
+
