@@ -15,6 +15,10 @@ const SUPPLIER_META: Record<Supplier, { label: string; category: string; orderTy
   'carrier-bag-shop':{ label: 'Carrier Bag Shop', category: 'Paper Bags',              orderType: 'portal' },
   'nisbets':         { label: 'Nisbets',         category: 'Catering Supplies',        orderType: 'portal' },
   'booker':          { label: 'Booker',          category: 'Fresh Ingredients & Sundries', orderType: 'portal' },
+  'stores-supply':   { label: 'Stores Supply',   category: 'Milk & Bottled Drinks',         orderType: 'portal' },
+  'ambican':         { label: 'Ambican',         category: 'Disposable Packaging',           orderType: 'portal' },
+  'the-estate-dairy':{ label: 'The Estate Dairy', category: 'Milk (Emergency Cover)',        orderType: 'portal' },
+  'debaere':         { label: 'Debaere',         category: 'Pastries',                       orderType: 'portal' },
 };
 
 function toNum(v: unknown): number {
@@ -30,6 +34,10 @@ function identifySupplier(callbackUrl: string): Supplier {
   if (callbackUrl.includes('order-approved-carrier-bag-shop'))return 'carrier-bag-shop';
   if (callbackUrl.includes('order-approved-nisbets'))         return 'nisbets';
   if (callbackUrl.includes('order-approved-booker'))          return 'booker';
+  if (callbackUrl.includes('order-approved-stores-supply'))    return 'stores-supply';
+  if (callbackUrl.includes('order-approved-ambican'))          return 'ambican';
+  if (callbackUrl.includes('order-approved-estate-dairy'))     return 'the-estate-dairy';
+  if (callbackUrl.includes('order-approved-debaere'))          return 'debaere';
   return 'house-of-sin';
 }
 

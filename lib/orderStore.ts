@@ -11,7 +11,11 @@ export type Supplier =
   | 'amazon-uk'
   | 'carrier-bag-shop'
   | 'nisbets'
-  | 'booker';
+  | 'booker'
+  | 'stores-supply'
+  | 'ambican'
+  | 'the-estate-dairy'
+  | 'debaere';
 
 export type OrderItem = {
   name: string;
