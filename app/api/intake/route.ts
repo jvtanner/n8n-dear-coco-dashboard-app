@@ -84,11 +84,11 @@ export async function POST(req: NextRequest) {
     const supplier: Supplier = body.supplier ?? identifySupplier(callbackUrl);
     const meta = SUPPLIER_META[supplier];
 
-    // Determine items: new format sends `items` array, old format sends `order` object
+    // Determine items: new format sends `items` array (or JSON string), old format sends `order` object
     let items: OrderItem[];
-    if (Array.isArray(body.items)) {
-      // New free-form format
-      items = body.items;
+    const parsedItems = typeof body.items === 'string' ? JSON.parse(body.items) : body.items;
+    if (Array.isArray(parsedItems)) {
+      items = parsedItems;
     } else {
       // Legacy format — convert to OrderItem[]
       const rawOrder = typeof body.order === 'string' ? JSON.parse(body.order) : (body.order ?? {});
