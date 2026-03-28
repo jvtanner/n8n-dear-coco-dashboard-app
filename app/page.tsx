@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 type Supplier =
   | 'house-of-sin' | 'purpose-foods' | 'triple-co-roast'
   | 'cups-direct' | 'cakehead' | 'amazon-uk'
-  | 'carrier-bag-shop' | 'nisbets';
+  | 'carrier-bag-shop' | 'nisbets' | 'booker';
 
 type OrderItem = {
   name: string;
@@ -131,7 +131,7 @@ function OrderCard({
         </div>
         <div>
           <p style={lbl} className="mb-1.5">Submitted by</p>
-          <p style={{ ...dm, fontWeight: 500 }} className="text-[#2C1A0E]">{order.manager || '\u2014'}</p>
+          <p style={{ ...dm, fontWeight: 500 }} className="text-[#2C1A0E]">{order.manager || '—'}</p>
         </div>
         <div>
           <p style={lbl} className="mb-1.5">Received</p>
@@ -143,7 +143,7 @@ function OrderCard({
         </div>
       </div>
 
-      {/* Items - grouped or flat */}
+      {/* Items — grouped or flat */}
       {hasGroups ? (
         <div className={`grid grid-cols-1 ${groups.length >= 3 ? 'md:grid-cols-3' : groups.length === 2 ? 'md:grid-cols-2' : ''} divide-y md:divide-y-0 md:divide-x divide-[#EDE3D5]`}>
           {groups.map(group => {
@@ -160,7 +160,7 @@ function OrderCard({
                   return (
                     <div key={globalIndex} className={`flex items-center justify-between px-6 py-4 border-b border-[#F2EBE0] last:border-0 ${changed ? 'bg-[#FFFCF5]' : ''}`}>
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-[#C8935A] text-xs select-none">{'\u25CB'}</span>
+                        <span className="text-[#C8935A] text-xs select-none">○</span>
                         <span style={{ ...dm, fontSize: 13 }} className="text-[#3D2B1A] truncate">{item.name}</span>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
@@ -200,7 +200,7 @@ function OrderCard({
               return (
                 <div key={idx} className={`flex items-center justify-between px-5 py-4 border-b border-[#F2EBE0] last:border-0 ${changed ? 'bg-[#FFFCF5]' : ''}`}>
                   <div className="flex items-center gap-2.5">
-                    <span className="text-[#C8935A] text-xs select-none">{'\u25CB'}</span>
+                    <span className="text-[#C8935A] text-xs select-none">○</span>
                     <span style={{ ...dm, fontSize: 13 }} className="text-[#3D2B1A]">{item.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -239,7 +239,7 @@ function OrderCard({
   );
 }
 
-// ── Shared footer ────────────────────────────────────────────────────────────
+// ── Shared footer (notes + buttons) ──────────────────────────────────────────
 
 function OrderFooter({
   state, hasEdits, onSubmit,
@@ -252,7 +252,7 @@ function OrderFooter({
     const approved = state.result === 'approved';
     return (
       <div className={`mx-6 mb-7 mt-2 p-6 rounded-2xl text-center ${approved ? 'bg-[#EEF6F1] border border-[#B6D9C3]' : 'bg-[#FBF0EF] border border-[#F0C4C0]'}`}>
-        <div style={{ fontSize: 28 }} className="mb-2 select-none">{approved ? '\u2726' : '\u2715'}</div>
+        <div style={{ fontSize: 28 }} className="mb-2 select-none">{approved ? '✦' : '✕'}</div>
         <p style={{ ...cg, fontSize: 18, fontWeight: 600 }} className={approved ? 'text-[#2A5C3F]' : 'text-[#8B3A3A]'}>
           {approved ? 'Order sent!' : 'Order rejected'}
         </p>
@@ -264,7 +264,7 @@ function OrderFooter({
     <div className="px-7 pb-7 pt-5 space-y-4 border-t border-[#EDE3D5]">
       {hasEdits && (
         <div className="flex items-start gap-2 p-3.5 rounded-xl bg-[#FEF3E2] border border-[#F0D5A8]">
-          <span className="text-[#B8621A] select-none mt-px">{'\u270E'}</span>
+          <span className="text-[#B8621A] select-none mt-px">✎</span>
           <p style={{ ...dm, fontSize: 12 }} className="text-[#9A6B2C]">
             You&rsquo;ve made changes to the original order.
           </p>
@@ -272,7 +272,7 @@ function OrderFooter({
       )}
       {state.error && (
         <div className="flex items-start gap-2 p-3.5 rounded-xl bg-[#FBF0EF] border border-[#F0C4C0]">
-          <span className="text-[#8B3A3A] select-none mt-px">{'\u26A0'}</span>
+          <span className="text-[#8B3A3A] select-none mt-px">⚠</span>
           <p style={{ ...dm, fontSize: 12 }} className="text-[#8B3A3A]">{state.error}</p>
         </div>
       )}
@@ -283,7 +283,7 @@ function OrderFooter({
           style={{ ...dm, fontWeight: 500, fontSize: 14 }}
           className="flex-1 py-3.5 rounded-xl text-white bg-[#2A5C3F] hover:bg-[#22503A] active:bg-[#1B4230] disabled:opacity-50 transition-colors"
         >
-          {state.submitting ? 'Sending\u2026' : '\u2713  Approve & Send'}
+          {state.submitting ? 'Sending…' : '✓  Approve & Send'}
         </button>
         <button
           onClick={() => onSubmit('rejected')}
@@ -348,6 +348,8 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, [fetchOrders]);
 
+  // ── Universal quantity update ──────────────────────────────────────────────
+
   function updateQty(supplier: Supplier, index: number, value: string) {
     const num = value === '' ? 0 : Math.max(0, parseInt(value, 10) || 0);
     setStates(prev => {
@@ -379,6 +381,8 @@ export default function Dashboard() {
     });
   }
 
+  // ── Submit ─────────────────────────────────────────────────────────────────
+
   async function handleSubmit(supplier: Supplier, action: 'approved' | 'rejected') {
     const s = states[supplier];
     if (!s) return;
@@ -406,9 +410,11 @@ export default function Dashboard() {
         setStates(prev => ({ ...prev, [supplier]: { ...prev[supplier], submitting: false, error: data.error || 'Something went wrong.' } }));
       }
     } catch {
-      setStates(prev => ({ ...prev, [supplier]: { ...prev[supplier], submitting: false, error: 'Network error \u2014 please try again.' } }));
+      setStates(prev => ({ ...prev, [supplier]: { ...prev[supplier], submitting: false, error: 'Network error — please try again.' } }));
     }
   }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -420,10 +426,11 @@ export default function Dashboard() {
       `}</style>
 
       <div style={{ fontFamily: "'DM Sans', sans-serif", background: '#FAF7F0', minHeight: '100vh' }}>
+        {/* Header */}
         <header className="sticky top-0 z-10 border-b border-[#EDE3D5] bg-white/90 backdrop-blur-sm">
           <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-[#F5E6D0] flex items-center justify-center text-lg select-none">{'\uD83E\uDD50'}</div>
+              <div className="w-9 h-9 rounded-full bg-[#F5E6D0] flex items-center justify-center text-lg select-none">🥐</div>
               <div>
                 <h1 style={{ ...cg, fontWeight: 600, fontSize: 19, lineHeight: 1 }} className="text-[#2C1A0E]">Dear Coco</h1>
                 <p style={{ ...dm, fontSize: 10, letterSpacing: '0.1em' }} className="text-[#9A7B5C] mt-0.5 uppercase">Order Review</p>
@@ -441,12 +448,12 @@ export default function Dashboard() {
         <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8">
           {!loaded ? (
             <div className="flex flex-col items-center justify-center gap-3" style={{ minHeight: '60vh' }}>
-              <span className="text-4xl animate-spin" style={{ animationDuration: '3s', display: 'inline-block' }}>{'\uD83C\uDF00'}</span>
-              <p style={dm} className="text-sm text-[#9A7B5C]">Loading{'\u2026'}</p>
+              <span className="text-4xl animate-spin" style={{ animationDuration: '3s', display: 'inline-block' }}>🌀</span>
+              <p style={dm} className="text-sm text-[#9A7B5C]">Loading…</p>
             </div>
           ) : orders.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-5 text-center" style={{ minHeight: '65vh' }}>
-              <div className="w-20 h-20 rounded-full bg-[#EDE3D5] flex items-center justify-center text-3xl select-none">{'\uD83E\uDD50'}</div>
+              <div className="w-20 h-20 rounded-full bg-[#EDE3D5] flex items-center justify-center text-3xl select-none">🥐</div>
               <div>
                 <h2 style={{ ...cg, fontSize: 26, fontWeight: 600 }} className="text-[#2C1A0E] mb-2">No pending orders</h2>
                 <p style={dm} className="text-[#9A7B5C] text-sm max-w-xs leading-relaxed">
@@ -461,6 +468,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
+              {/* Venue / meta bar */}
               {orders[0] && (
                 <div className="bg-white rounded-2xl border border-[#EDE3D5] px-7 py-5 flex flex-wrap gap-x-10 gap-y-3 items-center">
                   <div>
@@ -470,12 +478,13 @@ export default function Dashboard() {
                   <div>
                     <p style={lbl} className="mb-1">Orders pending</p>
                     <p style={{ ...dm, fontWeight: 500 }} className="text-[#2C1A0E]">
-                      {orders.map(o => o.supplierLabel).join(' \u00B7 ')}
+                      {orders.map(o => o.supplierLabel).join(' · ')}
                     </p>
                   </div>
                 </div>
               )}
 
+              {/* Order cards */}
               {orders.map(order => {
                 const s = states[order.supplier];
                 if (!s) return null;
@@ -498,7 +507,7 @@ export default function Dashboard() {
                         <textarea
                           value={notes[order.supplier] ?? ''}
                           onChange={e => setNotes(prev => ({ ...prev, [order.supplier]: e.target.value }))}
-                          placeholder="e.g. Adjusted quantities \u2014 running low on stock"
+                          placeholder="e.g. Adjusted quantities — running low on stock"
                           rows={2}
                           style={{ ...dm, fontSize: 13 }}
                           className="w-full border border-[#EDE3D5] rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#C8935A] resize-none placeholder-[#C8BBA8] bg-white text-[#2C1A0E] transition-colors"
@@ -514,7 +523,7 @@ export default function Dashboard() {
 
         <footer className="text-center pb-10">
           <p style={{ ...dm, fontSize: 10, letterSpacing: '0.1em' }} className="text-[#C8BBA8] uppercase">
-            Dear Coco {'\u00B7'} Refreshes every 5 s
+            Dear Coco · Refreshes every 5 s
           </p>
         </footer>
       </div>

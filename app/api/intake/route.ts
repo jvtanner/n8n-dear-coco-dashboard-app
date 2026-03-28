@@ -4,6 +4,7 @@ import type { Supplier, OrderItem } from '@/lib/orderStore';
 
 export const dynamic = 'force-dynamic';
 
+// Supplier metadata defaults (used when WF1 doesn't send them yet — backward compat)
 const SUPPLIER_META: Record<Supplier, { label: string; category: string; orderType: 'email' | 'portal' }> = {
   'house-of-sin':    { label: 'House of Sin',    category: 'Cinnamon Buns',            orderType: 'email' },
   'purpose-foods':   { label: 'Purpose Foods',   category: 'Protein Balls',            orderType: 'email' },
@@ -13,6 +14,7 @@ const SUPPLIER_META: Record<Supplier, { label: string; category: string; orderTy
   'amazon-uk':       { label: 'Amazon UK',       category: 'Miscellaneous',            orderType: 'portal' },
   'carrier-bag-shop':{ label: 'Carrier Bag Shop', category: 'Paper Bags',              orderType: 'portal' },
   'nisbets':         { label: 'Nisbets',         category: 'Catering Supplies',        orderType: 'portal' },
+  'booker':          { label: 'Booker',          category: 'Fresh Ingredients & Sundries', orderType: 'portal' },
 };
 
 function toNum(v: unknown): number {
@@ -27,9 +29,11 @@ function identifySupplier(callbackUrl: string): Supplier {
   if (callbackUrl.includes('order-approved-amazon'))          return 'amazon-uk';
   if (callbackUrl.includes('order-approved-carrier-bag-shop'))return 'carrier-bag-shop';
   if (callbackUrl.includes('order-approved-nisbets'))         return 'nisbets';
+  if (callbackUrl.includes('order-approved-booker'))          return 'booker';
   return 'house-of-sin';
 }
 
+// Convert legacy HoS order format to OrderItem[]
 function legacyHoSToItems(raw: Record<string, unknown>): OrderItem[] {
   const items: OrderItem[] = [];
   const flavourLabels: Record<string, string> = {
@@ -46,6 +50,7 @@ function legacyHoSToItems(raw: Record<string, unknown>): OrderItem[] {
   return items;
 }
 
+// Convert legacy PF order format to OrderItem[]
 function legacyPFToItems(raw: Record<string, unknown>): OrderItem[] {
   const labels: Record<string, string> = {
     almondChocChip: 'Almond Choc Chip', raspberryCoconut: 'Raspberry Coconut',
@@ -54,6 +59,7 @@ function legacyPFToItems(raw: Record<string, unknown>): OrderItem[] {
   return Object.entries(labels).map(([key, label]) => ({ name: label, quantity: toNum(raw[key]) })).filter(i => i.quantity > 0);
 }
 
+// Convert legacy TCR order format to OrderItem[]
 function legacyTCRToItems(raw: Record<string, unknown>): OrderItem[] {
   const outer = (raw.tripleCo && typeof raw.tripleCo === 'object' ? raw.tripleCo : raw) as Record<string, unknown>;
   const labels: Record<string, string> = {
@@ -63,6 +69,7 @@ function legacyTCRToItems(raw: Record<string, unknown>): OrderItem[] {
   return Object.entries(labels).map(([key, label]) => ({ name: label, quantity: toNum(outer[key]), unit: '1kg bags' })).filter(i => i.quantity > 0);
 }
 
+// Convert legacy generic Record<string, number> to OrderItem[]
 function legacyGenericToItems(raw: Record<string, unknown>): OrderItem[] {
   return Object.entries(raw).map(([name, qty]) => ({ name, quantity: toNum(qty) })).filter(i => i.quantity > 0);
 }
@@ -77,11 +84,13 @@ export async function POST(req: NextRequest) {
     const supplier: Supplier = body.supplier ?? identifySupplier(callbackUrl);
     const meta = SUPPLIER_META[supplier];
 
+    // Determine items: new format sends `items` array, old format sends `order` object
     let items: OrderItem[];
-    const rawItems = typeof body.items === 'string' ? JSON.parse(body.items) : body.items;
-    if (Array.isArray(rawItems)) {
-      items = rawItems;
+    if (Array.isArray(body.items)) {
+      // New free-form format
+      items = body.items;
     } else {
+      // Legacy format — convert to OrderItem[]
       const rawOrder = typeof body.order === 'string' ? JSON.parse(body.order) : (body.order ?? {});
       if (supplier === 'house-of-sin') {
         items = legacyHoSToItems(rawOrder);
@@ -114,4 +123,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: String(err) }, { status: 400 });
   }
 }
-

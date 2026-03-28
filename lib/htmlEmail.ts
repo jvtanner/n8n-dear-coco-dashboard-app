@@ -43,7 +43,7 @@ export function generateUniversalEmail(
       ? `<p>Hi team, below is our ${category?.toLowerCase() || 'order'} order for ${venue}</p>`
       : `<p>Hi ${manager || 'team'}, the ${supplierLabel} order has been approved.</p>`;
 
-  // Group items by the group field
+  // Group items by the group field (e.g., "Tuesday", "Thursday", "Saturday" for HoS)
   const groups: Record<string, OrderItem[]> = {};
   for (const item of items) {
     const g = item.group || '_default';

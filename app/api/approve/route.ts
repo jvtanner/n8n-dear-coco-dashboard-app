@@ -20,8 +20,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'No pending order found for supplier' }, { status: 404 });
     }
 
+    // Use edited items from the dashboard if provided, otherwise use stored items
     const orderItems = items ?? stored.items;
 
+    // Regenerate the HTML email from the (possibly edited) items
     const htmlEmail = generateUniversalEmail(
       orderItems,
       stored.supplierLabel,

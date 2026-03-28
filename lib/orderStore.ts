@@ -10,7 +10,8 @@ export type Supplier =
   | 'cakehead'
   | 'amazon-uk'
   | 'carrier-bag-shop'
-  | 'nisbets';
+  | 'nisbets'
+  | 'booker';
 
 export type OrderItem = {
   name: string;
