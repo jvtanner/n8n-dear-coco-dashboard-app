@@ -436,13 +436,17 @@ export default function Dashboard() {
                 <p style={{ ...dm, fontSize: 10, letterSpacing: '0.1em' }} className="text-[#9A7B5C] mt-0.5 uppercase">Order Review</p>
               </div>
             </div>
-            {orders.length > 0 && (
+            <div className="flex items-center gap-3">
+              {orders.length > 0 && (
               <span style={{ ...dm, fontSize: 11, letterSpacing: '0.08em' }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FEF3E2] text-[#B8621A] uppercase">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#B8621A] animate-pulse inline-block" />
                 {orders.length} pending
               </span>
             )}
-          </div>
+              <a href="/todo" style={{ ...dm, fontSize: 11, letterSpacing: '0.08em' }} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#E0D8CC] text-[#A89070] uppercase hover:bg-[#FAF7F0] transition-colors">
+                Checklist
+              </a>
+            </div>
         </header>
 
         <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10 space-y-8">
