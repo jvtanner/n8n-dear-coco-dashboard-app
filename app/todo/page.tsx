@@ -13,7 +13,6 @@ type Task = {
   title: string;
   detail: string;
   tags: { label: string; type: 'owner' | 'dev' | 'supplier' }[];
-  phase: number;
 };
 
 type Phase = {
