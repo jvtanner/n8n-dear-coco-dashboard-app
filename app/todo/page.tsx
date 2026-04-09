@@ -43,21 +43,23 @@ const PHASES: Phase[] = [
   {
     num: 2,
     title: 'Finish Rekki Integration',
-    desc: 'Covers 3 suppliers at once: Stores Supply, Ambican, The Estate Dairy. API is 90% reverse-engineered — one final step needed.',
-    color: '#b45309',
+    desc: 'Covers 3 suppliers at once: Stores Supply, Ambican, The Estate Dairy. API fully captured and automation built on 9 Apr 2026.',
+    color: '#1a7a5c',
     tasks: [
       { id: 'p2-proxy', title: 'Place one real order on the Rekki app with the proxy running', detail: 'The mitmproxy session captured everything except the final "submit order" endpoint. Open the Rekki app on your phone with the proxy active (same setup as last time), place a small real order to any of the 3 Rekki suppliers, and let it capture the network traffic. This gives us the last missing piece to fully automate all 3 suppliers.', tags: [{ label: 'OWNER', type: 'owner' }, { label: 'Stores Supply', type: 'supplier' }, { label: 'Ambican', type: 'supplier' }, { label: 'The Estate Dairy', type: 'supplier' }] },
       { id: 'p2-build', title: 'Build and deploy Rekki ordering automation', detail: 'Once the submission endpoint is captured, the build team will create the Code nodes and replace the email fallback in all 3 workflows. This upgrades Stores Supply, Ambican, and The Estate Dairy from email reminders to fully automated orders.', tags: [{ label: 'DEV', type: 'dev' }, { label: 'Stores Supply', type: 'supplier' }, { label: 'Ambican', type: 'supplier' }, { label: 'The Estate Dairy', type: 'supplier' }] },
+      { id: 'p2-test', title: 'Test order: Rekki suppliers', detail: 'Automation fetches the Rekki product catalog, fuzzy-matches item names, validates the order intent, and submits via the Rekki API. Test with each supplier: Stores Supply, Ambican, and The Estate Dairy. Owner decides what to order, dev sends it through the dashboard and approves. Confirm the order appears in the Rekki app.', tags: [{ label: 'OWNER', type: 'owner' }, { label: 'DEV', type: 'dev' }, { label: 'Stores Supply', type: 'supplier' }, { label: 'Ambican', type: 'supplier' }, { label: 'The Estate Dairy', type: 'supplier' }] },
     ],
   },
   {
     num: 3,
     title: 'Reverse-Engineer Debaere App',
-    desc: 'Same approach as Rekki. Covers daily pastry orders.',
-    color: '#b45309',
+    desc: 'Same approach as Rekki. Covers daily pastry orders. API captured and automation built on 5 Apr 2026.',
+    color: '#1a7a5c',
     tasks: [
       { id: 'p3-proxy', title: 'Run the proxy on the Debaere app and place an order', detail: 'Set up mitmproxy on your phone (same as the Rekki session), open the Debaere app, browse the catalog, and place a real order. This captures the full API — login, product catalog, and order submission. Credentials: thegessner@dearcoco.com.', tags: [{ label: 'OWNER', type: 'owner' }, { label: 'Debaere', type: 'supplier' }] },
       { id: 'p3-build', title: 'Build and deploy Debaere ordering automation', detail: 'Once the API is captured, the build team documents it and creates the Code node for WF14. Upgrades Debaere from email reminder to fully automated daily pastry orders.', tags: [{ label: 'DEV', type: 'dev' }, { label: 'Debaere', type: 'supplier' }] },
+      { id: 'p3-test', title: 'Test order: Debaere', detail: 'Automation logs in to the Debaere API, fetches the full product catalog, fuzzy-matches item names, validates the delivery date, and submits the order. Owner decides what to order (min £25), dev sends it through the dashboard and approves. Confirm the order appears in the Debaere app.', tags: [{ label: 'OWNER', type: 'owner' }, { label: 'DEV', type: 'dev' }, { label: 'Debaere', type: 'supplier' }] },
     ],
   },
   {
@@ -90,11 +92,12 @@ function FontLink() {
 }
 
 export default function TodoPage() {
-  const [done, setDone] = useState<Record<string, boolean>>({});
+  const defaultDone: Record<string, boolean> = { 'p2-proxy': true, 'p2-build': true, 'p3-proxy': true, 'p3-build': true };
+  const [done, setDone] = useState<Record<string, boolean>>(defaultDone);
 
   useEffect(() => {
     const saved = localStorage.getItem('dc-todo-done');
-    if (saved) setDone(JSON.parse(saved));
+    if (saved) setDone({ ...defaultDone, ...JSON.parse(saved) });
   }, []);
 
   const toggle = (id: string) => {
@@ -140,7 +143,7 @@ export default function TodoPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, background: '#E0D8CC', border: '1px solid #E0D8CC', borderRadius: 12, overflow: 'hidden', marginBottom: 48 }}>
             {[
               { num: `${doneTasks}/${totalTasks}`, label: 'Completed', color: '#1a7a5c' },
-              { num: '5', label: 'Fully Automated', color: '#1a7a5c' },
+              { num: '9', label: 'Fully Automated', color: '#1a7a5c' },
               { num: '13', label: 'Suppliers Connected', color: '#2563a8' },
               { num: '14', label: 'Workflows Active', color: '#1a7a5c' },
             ].map((s, i) => (

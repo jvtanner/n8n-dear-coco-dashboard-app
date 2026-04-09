@@ -22,6 +22,8 @@ export type OrderItem = {
   quantity: number;
   group?: string;
   unit?: string;
+  confidence?: number;
+  matchedTo?: string;
 };
 
 export type PendingOrder = {

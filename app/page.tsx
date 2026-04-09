@@ -14,6 +14,8 @@ type OrderItem = {
   quantity: number;
   group?: string;
   unit?: string;
+  confidence?: number;
+  matchedTo?: string;
 };
 
 type PendingOrder = {
@@ -157,11 +159,21 @@ function OrderCard({
                 {group.items.map(({ item, originalItem, globalIndex }) => {
                   const changed = item.quantity !== originalItem.quantity;
                   const inputVal = state.rawInputs[globalIndex] ?? String(item.quantity);
+                  const conf = item.confidence;
+                  const isLow = conf !== undefined && conf < 0.8;
+                  const isVeryLow = conf !== undefined && conf < 0.5;
+                  const bulletColor = conf === undefined ? '#C8935A' : isVeryLow ? '#DC2626' : isLow ? '#D97706' : '#16A34A';
+                  const bullet = conf === undefined ? '○' : isVeryLow ? '✕' : isLow ? '◐' : '●';
                   return (
                     <div key={globalIndex} className={`flex items-center justify-between px-6 py-4 border-b border-[#F2EBE0] last:border-0 ${changed ? 'bg-[#FFFCF5]' : ''}`}>
                       <div className="flex items-center gap-2.5 min-w-0">
-                        <span className="text-[#C8935A] text-xs select-none">○</span>
-                        <span style={{ ...dm, fontSize: 13 }} className="text-[#3D2B1A] truncate">{item.name}</span>
+                        <span style={{ color: bulletColor }} className="text-xs select-none">{bullet}</span>
+                        <div className="min-w-0">
+                          <span style={{ ...dm, fontSize: 13, color: isVeryLow ? '#DC2626' : isLow ? '#D97706' : '#3D2B1A' }} className="truncate block">{item.name}</span>
+                          {item.matchedTo && item.matchedTo !== item.name && (
+                            <span style={{ ...dm, fontSize: 10, color: isVeryLow ? '#DC2626' : '#D97706' }} className="truncate block">→ {item.matchedTo}</span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
                         {changed && (
@@ -197,11 +209,21 @@ function OrderCard({
               const originalItem = state.originalItems[idx];
               const changed = item.quantity !== originalItem?.quantity;
               const inputVal = state.rawInputs[idx] ?? String(item.quantity);
+              const conf = item.confidence;
+              const isLow = conf !== undefined && conf < 0.8;
+              const isVeryLow = conf !== undefined && conf < 0.5;
+              const bulletColor = conf === undefined ? '#C8935A' : isVeryLow ? '#DC2626' : isLow ? '#D97706' : '#16A34A';
+              const bullet = conf === undefined ? '○' : isVeryLow ? '✕' : isLow ? '●' : '●';
               return (
                 <div key={idx} className={`flex items-center justify-between px-5 py-4 border-b border-[#F2EBE0] last:border-0 ${changed ? 'bg-[#FFFCF5]' : ''}`}>
                   <div className="flex items-center gap-2.5">
-                    <span className="text-[#C8935A] text-xs select-none">○</span>
-                    <span style={{ ...dm, fontSize: 13 }} className="text-[#3D2B1A]">{item.name}</span>
+                    <span style={{ color: bulletColor }} className="text-xs select-none">{bullet}</span>
+                    <div>
+                      <span style={{ ...dm, fontSize: 13, color: isVeryLow ? '#DC2626' : isLow ? '#D97706' : '#3D2B1A' }}>{item.name}</span>
+                      {item.matchedTo && item.matchedTo !== item.name && (
+                        <span style={{ ...dm, fontSize: 10, display: 'block', color: isVeryLow ? '#DC2626' : '#D97706' }}>→ {item.matchedTo}</span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     {changed && (
