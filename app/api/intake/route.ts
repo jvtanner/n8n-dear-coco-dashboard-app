@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    saveOrder({
+    await saveOrder({
       supplier,
       supplierLabel: body.supplierLabel ?? meta.label,
       category:      body.category ?? meta.category,

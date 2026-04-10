@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       adjustmentNotes?: string;
     };
 
-    const stored = getAllOrders().find(o => o.supplier === supplier);
+    const stored = (await getAllOrders()).find(o => o.supplier === supplier);
     if (!stored) {
       return NextResponse.json({ success: false, error: 'No pending order found for supplier' }, { status: 404 });
     }
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    clearOrder(supplier);
+    await clearOrder(supplier);
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('approve error', err);

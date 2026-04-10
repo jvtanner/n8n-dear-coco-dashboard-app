@@ -1,6 +1,6 @@
-import { writeFileSync, readFileSync, existsSync } from 'fs';
+import { kv } from '@vercel/kv';
 
-const TMP_PATH = '/tmp/dear-coco-orders.json';
+const KV_KEY = 'dear-coco-orders';
 
 export type Supplier =
   | 'house-of-sin'
@@ -75,41 +75,38 @@ export type TCROrderData = {
 export type GenericOrderData = Record<string, number>;
 // --- End legacy types ---
 
-const orders = new Map<Supplier, PendingOrder>();
-
-function persist() {
+async function readAll(): Promise<Map<Supplier, PendingOrder>> {
   try {
-    writeFileSync(TMP_PATH, JSON.stringify(Array.from(orders.values())));
+    const arr = (await kv.get<PendingOrder[]>(KV_KEY)) ?? [];
+    const map = new Map<Supplier, PendingOrder>();
+    for (const o of arr) map.set(o.supplier, o);
+    return map;
   } catch {
-    // /tmp may not be writable in all environments
+    return new Map();
   }
 }
 
-function hydrate() {
-  if (orders.size > 0) return;
+async function writeAll(map: Map<Supplier, PendingOrder>): Promise<void> {
   try {
-    if (existsSync(TMP_PATH)) {
-      const raw = readFileSync(TMP_PATH, 'utf-8');
-      if (!raw) return;
-      const arr = JSON.parse(raw) as PendingOrder[];
-      for (const o of arr) orders.set(o.supplier, o);
-    }
+    await kv.set(KV_KEY, Array.from(map.values()));
   } catch {
-    // ignore
+    // swallow — caller will see stale data but app keeps running
   }
 }
 
-export function saveOrder(order: PendingOrder): void {
-  orders.set(order.supplier, order);
-  persist();
+export async function saveOrder(order: PendingOrder): Promise<void> {
+  const map = await readAll();
+  map.set(order.supplier, order);
+  await writeAll(map);
 }
 
-export function getAllOrders(): PendingOrder[] {
-  hydrate();
-  return Array.from(orders.values());
+export async function getAllOrders(): Promise<PendingOrder[]> {
+  const map = await readAll();
+  return Array.from(map.values());
 }
 
-export function clearOrder(supplier: Supplier): void {
-  orders.delete(supplier);
-  persist();
+export async function clearOrder(supplier: Supplier): Promise<void> {
+  const map = await readAll();
+  map.delete(supplier);
+  await writeAll(map);
 }
