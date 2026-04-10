@@ -1,5 +1,6 @@
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
 
+const redis = Redis.fromEnv();
 const KV_KEY = 'dear-coco-orders';
 
 export type Supplier =
@@ -76,22 +77,14 @@ export type GenericOrderData = Record<string, number>;
 // --- End legacy types ---
 
 async function readAll(): Promise<Map<Supplier, PendingOrder>> {
-  try {
-    const arr = (await kv.get<PendingOrder[]>(KV_KEY)) ?? [];
-    const map = new Map<Supplier, PendingOrder>();
-    for (const o of arr) map.set(o.supplier, o);
-    return map;
-  } catch {
-    return new Map();
-  }
+  const arr = (await redis.get<PendingOrder[]>(KV_KEY)) ?? [];
+  const map = new Map<Supplier, PendingOrder>();
+  for (const o of arr) map.set(o.supplier, o);
+  return map;
 }
 
 async function writeAll(map: Map<Supplier, PendingOrder>): Promise<void> {
-  try {
-    await kv.set(KV_KEY, Array.from(map.values()));
-  } catch {
-    // swallow — caller will see stale data but app keeps running
-  }
+  await redis.set(KV_KEY, Array.from(map.values()));
 }
 
 export async function saveOrder(order: PendingOrder): Promise<void> {
