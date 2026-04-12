@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 // Supplier metadata defaults (used when WF1 doesn't send them yet — backward compat)
 const SUPPLIER_META: Record<Supplier, { label: string; category: string; orderType: 'email' | 'portal' }> = {
-  'house-of-sin':    { label: 'House of Sin',    category: 'Cinnamon Buns',            orderType: 'email' },
+  'house-of-sin':    { label: 'House of Cinn',    category: 'Cinnamon Buns',            orderType: 'email' },
   'purpose-foods':   { label: 'Purpose Foods',   category: 'Protein Balls',            orderType: 'email' },
   'triple-co-roast': { label: 'Triple Co Roast', category: 'Coffee',                   orderType: 'portal' },
   'cups-direct':     { label: 'Cups Direct',     category: 'Disposable Packaging',     orderType: 'portal' },
